@@ -625,10 +625,27 @@ def stats(session:Session=Depends(db)):
     return {"successful_returns":total,"active_listings":session.query(ListingRow).filter(ListingRow.status=="active").count(),"total_users":session.query(UserRow).filter(UserRow.is_active==True).count(),"districts":[{"district":d,"count":c} for d,c in districts],"categories":[{"category":c,"count":n} for c,n in categories]}
 
 @app.get("/profile/{user_id}")
-def profile(user_id:int,session:Session=Depends(db)):
+def profile(user_id:int, listing_id:int|None=None, session:Session=Depends(db), viewer:UserRow|None=Depends(current_user)):
+    from sqlalchemy import func
     u=session.get(UserRow,user_id)
     if not u: raise HTTPException(404,"A profil nem található.")
-    return {"id":u.id,"name":u.name,"avatar_url":u.avatar_url,"phone_verified":bool(u.phone_verified),"successful_returns":u.successful_returns or 0,"rating":round((u.rating_sum or 0)/(u.rating_count or 1),1) if u.rating_count else None,"rating_count":u.rating_count or 0,"member_since":u.created_at.date().isoformat()}
+    reviews=session.scalars(select(RatingRow).where(RatingRow.to_user_id==u.id).order_by(RatingRow.created_at.desc()).limit(30)).all()
+    review_items=[]
+    for r in reviews:
+        author=session.get(UserRow,r.from_user_id)
+        listing=session.get(ListingRow,r.listing_id)
+        review_items.append({"score":r.score,"note":r.note or "","created_at":r.created_at.isoformat(),"from_name":author.name if author else "Törölt felhasználó","listing_title":listing.title if listing else "Lezárt ügylet"})
+    listings_count=session.scalar(select(func.count(ListingRow.id)).where(ListingRow.owner_user_id==u.id,ListingRow.status!="deleted")) or 0
+    resolved_count=session.scalar(select(func.count(ListingRow.id)).where(ListingRow.owner_user_id==u.id,ListingRow.status=="resolved")) or 0
+    can_rate=False
+    rate_listing_title=None
+    if viewer and listing_id:
+        target_listing=session.get(ListingRow,listing_id)
+        if target_listing and target_listing.status=="resolved" and target_listing.owner_user_id==u.id and viewer.id!=u.id:
+            already=session.scalar(select(RatingRow).where(RatingRow.listing_id==listing_id,RatingRow.from_user_id==viewer.id))
+            can_rate=already is None
+            rate_listing_title=target_listing.title
+    return {"id":u.id,"name":u.name,"avatar_url":u.avatar_url,"phone_verified":bool(u.phone_verified),"successful_returns":u.successful_returns or 0,"rating":round((u.rating_sum or 0)/(u.rating_count or 1),1) if u.rating_count else None,"rating_count":u.rating_count or 0,"member_since":u.created_at.date().isoformat(),"listings_count":listings_count,"resolved_count":resolved_count,"reviews":review_items,"can_rate":can_rate,"rate_listing_title":rate_listing_title}
 
 class PhoneIn(BaseModel): phone:str=Field(min_length=8,max_length=30)
 @app.post("/profile/phone")

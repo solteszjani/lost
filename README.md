@@ -98,3 +98,17 @@ A feltöltött képek jelenleg a szerver fájlrendszerébe kerülnek. Vercel sze
 - Profilom: profilkép feltöltése, e-mail- és jelszómódosítás, fióktörlés.
 - Fénykép alapú keresés: perceptuális képhash-alapú hasonlósági előszűrés, megnyitható hirdetési találatokkal.
 - A képi találatok becslések; nem garantálják, hogy ugyanaz a tárgy szerepel a képeken.
+
+
+## V9 – közösségi platform fejlesztések
+- Moderációs admin felület: jelentések áttekintése, kivizsgálása/elutasítása, hirdetések elrejtése, felhasználók felfüggesztése/visszaállítása.
+- Admin jogosultság: állítsd be a Vercel Environment Variables között az `ADMIN_EMAIL` változót. Az e-mail címmel belépő felhasználó admin felületet kap.
+- Térkép: Budapest határai, marker clustering, kerület/típus/távolság szűrők.
+- Push: VAPID kulcsokkal bekapcsolható böngésző push. Kulcsok nélkül az alkalmazáson belüli értesítések továbbra is működnek.
+- Közösségi statisztikák: sikeres visszaadások, aktív bejelentések, felhasználók, kerületi és kategória bontás.
+- A beszélgetések automatikus frissítése rövid időközű lekérdezéssel történik; ez nem WebSocket-alapú kapcsolat.
+
+### Éles indulás előtt szükséges külső szolgáltatások
+1. Tartós képtárolás (Vercel Blob vagy S3 kompatibilis szolgáltatás). A Vercel ideiglenes fájlrendszerén tárolt feltöltések nem garantáltan maradnak meg.
+2. Valódi szemantikus AI-képfelismeréshez CLIP/SigLIP modellvégpont vagy külső AI szolgáltató és API-kulcs szükséges. A beépített keresés jelenleg perceptuális képhash-alapú vizuális hasonlóságot ad, nem garantál azonos tárgy felismerést eltérő szögből készült képeken.
+3. Push értesítéshez VAPID kulcspár szükséges (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`).

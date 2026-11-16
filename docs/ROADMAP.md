@@ -17,3 +17,17 @@
 4. Képfelismerő/vision szolgáltatás a fotók vizuális összehasonlításához.
 5. Moderátori/admin felület, rate limit, spam- és visszaélésvédelem, adatvédelmi/jogi szövegek.
 6. Éles Neon adatbázison végzett migrációs és terhelési teszt.
+
+
+## V9 – közösségi platform csomag
+- Adminisztrációs API és admin felület: jelentések kivizsgálása, hirdetések elrejtése, fiókok felfüggesztése/visszaállítása.
+- Leaflet jelölőcsoportosítás a zsúfolt térképhez.
+- Bővített közösségi statisztikák kerületi és kategória bontásban.
+- Web Push előfizetés és service worker értesítéskezelés VAPID kulcsokkal.
+- Pontosabb szöveges párosítás magyar szavakra hangolt tokenizálással.
+- Meglévő PWA telepíthetőségi alap továbbfejlesztve.
+
+### Még külső konfigurációt igényel
+- Push: VAPID kulcspár.
+- Tartós képtárolás: Vercel Blob vagy S3 kompatibilis tárhely és hozzáférési token.
+- Szemantikus AI-képfelismerés: CLIP/SigLIP modellvégpont vagy szolgáltatói API. A jelenlegi beépített képi keresés perceptuális képhash-alapú, nem mélytanulásos tárgyfelismerés.

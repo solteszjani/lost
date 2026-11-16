@@ -64,6 +64,8 @@ class UserRow(Base):
     rating_sum: Mapped[int] = mapped_column(Integer, default=0)
     rating_count: Mapped[int] = mapped_column(Integer, default=0)
     avatar_url: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    role: Mapped[str] = mapped_column(String(20), default="user", nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
 class SessionRow(Base):
     __tablename__ = "user_sessions"
@@ -86,8 +88,20 @@ class MessageRow(Base):
 class ReportRow(Base):
     __tablename__ = "reports"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    listing_id: Mapped[int] = mapped_column(Integer)
+    listing_id: Mapped[int] = mapped_column(Integer, index=True)
     reason: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    reporter_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="open", nullable=False)
+    reviewed_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+class PushSubscriptionRow(Base):
+    __tablename__ = "push_subscriptions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    endpoint: Mapped[str] = mapped_column(Text, unique=True)
+    subscription_json: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -150,6 +164,12 @@ with engine.begin() as conn:
     mcols={c["name"] for c in inspect(engine).get_columns("messages")}
     if "image_url" not in mcols: conn.exec_driver_sql("ALTER TABLE messages ADD COLUMN image_url VARCHAR(300)")
     if "read_at" not in mcols: conn.exec_driver_sql("ALTER TABLE messages ADD COLUMN read_at TIMESTAMP")
+    ucols={c["name"] for c in inspect(engine).get_columns("users")}
+    if "role" not in ucols: conn.exec_driver_sql("ALTER TABLE users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user'")
+    if "is_active" not in ucols: conn.exec_driver_sql("ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE" if engine.dialect.name=="postgresql" else "ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1")
+    rcols={c["name"] for c in inspect(engine).get_columns("reports")}
+    for name,ddl in [("reporter_user_id","INTEGER"),("status","VARCHAR(20) NOT NULL DEFAULT 'open'"),("reviewed_by","INTEGER"),("reviewed_at","TIMESTAMP")]:
+        if name not in rcols: conn.exec_driver_sql(f"ALTER TABLE reports ADD COLUMN {name} {ddl}")
 app = FastAPI(title="Találtam API", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
@@ -189,6 +209,14 @@ def require_user(user: UserRow | None = Depends(current_user)):
     if not user: raise HTTPException(401, "A művelethez jelentkezz be.")
     return user
 
+def is_admin_user(user):
+    configured=os.getenv("ADMIN_EMAIL","").strip().lower()
+    return bool(user and (user.role=="admin" or (configured and user.email.lower()==configured)))
+
+def require_admin(user: UserRow = Depends(require_user)):
+    if not is_admin_user(user): raise HTTPException(403,"Adminisztrátori jogosultság szükséges.")
+    return user
+
 def serialize(row: ListingRow):
     return {"id": row.id, "owner_user_id": row.owner_user_id, "kind": row.kind, "title": row.title, "description": row.description,
             "category": row.category, "location": row.location, "date": row.date,
@@ -208,7 +236,8 @@ def register(payload: RegisterIn, response: Response, session: Session = Depends
     email = payload.email.strip().lower()
     if session.scalar(select(UserRow).where(UserRow.email == email)):
         raise HTTPException(409, "Ezzel az e-mail-címmel már regisztráltak.")
-    user = UserRow(name=payload.name.strip(), email=email, password_hash=hash_password(payload.password))
+    admin_email=os.getenv("ADMIN_EMAIL","").strip().lower()
+    user = UserRow(name=payload.name.strip(), email=email, password_hash=hash_password(payload.password), role=("admin" if admin_email and email==admin_email else "user"))
     session.add(user); session.commit(); session.refresh(user)
     issue_session(user, response, session)
     return {"id": user.id, "name": user.name, "email": user.email}
@@ -223,6 +252,7 @@ def issue_session(user, response, session):
 def login(payload: LoginIn, response: Response, session: Session = Depends(db)):
     user = session.scalar(select(UserRow).where(UserRow.email == payload.email.strip().lower()))
     if not user or not verify_password(payload.password, user.password_hash): raise HTTPException(401, "Hibás e-mail-cím vagy jelszó.")
+    if not user.is_active: raise HTTPException(403, "A fiók jelenleg fel van függesztve.")
     issue_session(user, response, session)
     return {"id": user.id, "name": user.name, "email": user.email}
 
@@ -237,7 +267,7 @@ def logout(request: Request, response: Response, session: Session = Depends(db))
 
 @app.get("/auth/me")
 def me(user: UserRow | None = Depends(current_user)):
-    return {"user": ({"id":user.id,"name":user.name,"email":user.email,"avatar_url":user.avatar_url} if user else None)}
+    return {"user": ({"id":user.id,"name":user.name,"email":user.email,"avatar_url":user.avatar_url,"is_admin":is_admin_user(user)} if user else None)}
 
 @app.get("/health")
 def health(): return {"status": "ok", "app": "Találtam"}
@@ -371,10 +401,13 @@ class ReportIn(BaseModel):
     reason: str = Field(min_length=3, max_length=1000)
 
 @app.post("/listings/{listing_id}/report", status_code=201)
-def report_listing(listing_id: int, payload: ReportIn, session: Session = Depends(db)):
+def report_listing(listing_id: int, payload: ReportIn, session: Session = Depends(db), user: UserRow = Depends(require_user)):
     row = session.get(ListingRow, listing_id)
     if not row: raise HTTPException(404, "A bejelentés nem található.")
-    report = ReportRow(listing_id=listing_id, reason=payload.reason)
+    if row.owner_user_id == user.id: raise HTTPException(400, "Saját hirdetésedet nem jelentheted.")
+    if session.scalar(select(ReportRow).where(ReportRow.listing_id==listing_id,ReportRow.reporter_user_id==user.id,ReportRow.status=="open")):
+        raise HTTPException(409, "Ezt a hirdetést már jelentetted.")
+    report = ReportRow(listing_id=listing_id, reason=payload.reason, reporter_user_id=user.id)
     session.add(report); session.commit()
     return {"status": "received"}
 
@@ -388,12 +421,23 @@ def haversine(lat1,lon1,lat2,lon2):
     return 6371*2*asin(sqrt(a))
 
 def notify(session,user_id,title,body,url="/"):
-    if user_id: session.add(NotificationRow(user_id=user_id,title=title,body=body,url=url))
+    if not user_id: return
+    session.add(NotificationRow(user_id=user_id,title=title,body=body,url=url))
+    # Push küldés csak akkor történik, ha a felhasználó feliratkozott és a VAPID kulcsok be vannak állítva.
+    try:
+        send_web_push(session,user_id,title,body,url)
+    except Exception:
+        pass
 
 def similarity(a,b):
-    words=set((a.title+" "+a.description+" "+a.category).casefold().split())
-    other=set((b.title+" "+b.description+" "+b.category).casefold().split())
-    return len(words & other)/max(1,len(words | other))
+    import re, unicodedata
+    stop={"és","vagy","egy","az","a","el","talált","elveszett","keresem","került","volt","van","budapest","kerület"}
+    def tokens(row):
+        raw=unicodedata.normalize("NFKC",(row.title+" "+row.description+" "+row.category).casefold())
+        return {w for w in re.findall(r"[a-záéíóöőúüű0-9]{2,}",raw) if w not in stop}
+    x,y=tokens(a),tokens(b)
+    if not x or not y: return 0.0
+    return .65*(len(x&y)/len(x|y))+.35*(len(x&y)/min(len(x),len(y)))
 
 def notify_matches(row,session):
     if not row.owner_user_id: return
@@ -464,8 +508,11 @@ def resolve_listing(listing_id:int,session:Session=Depends(db),user:UserRow=Depe
 
 @app.get("/stats")
 def stats(session:Session=Depends(db)):
-    total=session.scalar(select(ListingRow).where(ListingRow.status=="resolved"))
-    return {"successful_returns":session.query(ListingRow).filter(ListingRow.status=="resolved").count()}
+    from sqlalchemy import func
+    total=session.query(ListingRow).filter(ListingRow.status=="resolved").count()
+    districts=session.query(ListingRow.district,func.count(ListingRow.id)).filter(ListingRow.status=="resolved",ListingRow.district.is_not(None)).group_by(ListingRow.district).order_by(func.count(ListingRow.id).desc()).all()
+    categories=session.query(ListingRow.category,func.count(ListingRow.id)).filter(ListingRow.status=="resolved").group_by(ListingRow.category).order_by(func.count(ListingRow.id).desc()).all()
+    return {"successful_returns":total,"active_listings":session.query(ListingRow).filter(ListingRow.status=="active").count(),"total_users":session.query(UserRow).filter(UserRow.is_active==True).count(),"districts":[{"district":d,"count":c} for d,c in districts],"categories":[{"category":c,"count":n} for c,n in categories]}
 
 @app.get("/profile/{user_id}")
 def profile(user_id:int,session:Session=Depends(db)):
@@ -580,3 +627,90 @@ async def upload_chat_image(image:UploadFile=File(...),user:UserRow=Depends(requ
     if not (raw.startswith(b"\x89PNG\r\n\x1a\n") or raw.startswith(b"\xff\xd8\xff") or (raw[:4]==b"RIFF" and raw[8:12]==b"WEBP")): raise HTTPException(415,"Csak PNG, JPG vagy WEBP kép tölthető fel.")
     ext="png" if raw.startswith(b"\x89PNG") else ("jpg" if raw.startswith(b"\xff\xd8") else "webp")
     name=f"chat_{uuid4().hex}.{ext}"; (UPLOAD_DIR/name).write_bytes(raw); return {"image_url":f"/uploads/{name}"}
+
+
+# --- V9: moderáció, adminisztráció, web push ---
+import json
+
+def send_web_push(session,user_id,title,body,url="/"):
+    public_key=os.getenv("VAPID_PUBLIC_KEY","").strip()
+    private_key=os.getenv("VAPID_PRIVATE_KEY","").strip()
+    if not (public_key and private_key): return
+    try:
+        from pywebpush import webpush
+        subs=session.scalars(select(PushSubscriptionRow).where(PushSubscriptionRow.user_id==user_id)).all()
+        for sub in subs:
+            try:
+                webpush(subscription_info=json.loads(sub.subscription_json),data=json.dumps({"title":title,"body":body,"url":url},ensure_ascii=False),vapid_private_key=private_key,vapid_claims={"sub":os.getenv("VAPID_SUBJECT","mailto:admin@talaltam.hu")})
+            except Exception as exc:
+                if getattr(getattr(exc,"response",None),"status_code",None) in (404,410): session.delete(sub)
+    except ImportError:
+        return
+class PushSubIn(BaseModel): subscription: dict
+class ReviewIn(BaseModel): status: str = Field(pattern="^(reviewed|dismissed)$")
+
+@app.get("/push/config")
+def push_config():
+    return {"enabled":bool(os.getenv("VAPID_PUBLIC_KEY","")),"public_key":os.getenv("VAPID_PUBLIC_KEY","")}
+
+@app.post("/push/subscribe")
+def push_subscribe(payload:PushSubIn,session:Session=Depends(db),user:UserRow=Depends(require_user)):
+    endpoint=payload.subscription.get("endpoint")
+    if not endpoint: raise HTTPException(400,"Érvénytelen push-előfizetés.")
+    row=session.scalar(select(PushSubscriptionRow).where(PushSubscriptionRow.endpoint==endpoint))
+    if row: row.user_id=user.id; row.subscription_json=json.dumps(payload.subscription)
+    else: session.add(PushSubscriptionRow(user_id=user.id,endpoint=endpoint,subscription_json=json.dumps(payload.subscription)))
+    session.commit(); return {"ok":True}
+
+@app.delete("/push/subscribe")
+def push_unsubscribe(endpoint:str,session:Session=Depends(db),user:UserRow=Depends(require_user)):
+    row=session.scalar(select(PushSubscriptionRow).where(PushSubscriptionRow.endpoint==endpoint,PushSubscriptionRow.user_id==user.id))
+    if row: session.delete(row); session.commit()
+    return {"ok":True}
+
+@app.get("/admin/overview")
+def admin_overview(session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
+    return {"users":session.query(UserRow).count(),"active_users":session.query(UserRow).filter(UserRow.is_active==True).count(),"listings":session.query(ListingRow).count(),"active_listings":session.query(ListingRow).filter(ListingRow.status=="active").count(),"resolved":session.query(ListingRow).filter(ListingRow.status=="resolved").count(),"open_reports":session.query(ReportRow).filter(ReportRow.status=="open").count()}
+
+@app.get("/admin/reports")
+def admin_reports(session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
+    out=[]
+    for r in session.scalars(select(ReportRow).order_by(ReportRow.created_at.desc()).limit(200)).all():
+        listing=session.get(ListingRow,r.listing_id); reporter=session.get(UserRow,r.reporter_user_id) if r.reporter_user_id else None
+        out.append({"id":r.id,"listing_id":r.listing_id,"listing_title":listing.title if listing else "Törölt hirdetés","reason":r.reason,"status":r.status,"reporter":reporter.name if reporter else "Ismeretlen","created_at":r.created_at.isoformat()})
+    return out
+
+@app.post("/admin/reports/{report_id}/review")
+def admin_review(report_id:int,payload:ReviewIn,session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
+    r=session.get(ReportRow,report_id)
+    if not r: raise HTTPException(404,"A jelentés nem található.")
+    r.status=payload.status; r.reviewed_by=admin.id; r.reviewed_at=datetime.utcnow(); session.commit(); return {"ok":True}
+
+@app.post("/admin/listings/{listing_id}/hide")
+def admin_hide(listing_id:int,session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
+    row=session.get(ListingRow,listing_id)
+    if not row: raise HTTPException(404,"A hirdetés nem található.")
+    row.status="moderated"; session.commit()
+    if row.owner_user_id: session.add(NotificationRow(user_id=row.owner_user_id,title="Hirdetés elrejtve",body="A hirdetésedet adminisztrátori ellenőrzés miatt elrejtettük.",url="/")); session.commit()
+    return {"ok":True}
+
+@app.post("/admin/users/{user_id}/suspend")
+def admin_suspend(user_id:int,session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
+    target=session.get(UserRow,user_id)
+    if not target: raise HTTPException(404,"Felhasználó nem található.")
+    if target.id==admin.id: raise HTTPException(400,"Saját fiók nem függeszthető fel.")
+    target.is_active=False; session.commit(); return {"ok":True}
+
+@app.post("/admin/users/{user_id}/restore")
+def admin_restore(user_id:int,session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
+    target=session.get(UserRow,user_id)
+    if not target: raise HTTPException(404,"Felhasználó nem található.")
+    target.is_active=True; session.commit(); return {"ok":True}
+
+@app.get("/admin/listings")
+def admin_listings(session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
+    return [{**serialize(r),"owner_name":(session.get(UserRow,r.owner_user_id).name if r.owner_user_id and session.get(UserRow,r.owner_user_id) else "Ismeretlen")} for r in session.scalars(select(ListingRow).order_by(ListingRow.created_at.desc()).limit(150)).all()]
+
+@app.get("/admin/health")
+def admin_health(session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
+    return {"database":"ok","database_dialect":engine.dialect.name,"push_configured":bool(os.getenv("VAPID_PUBLIC_KEY") and os.getenv("VAPID_PRIVATE_KEY")),"image_search":"perceptual-hash baseline; AI embeddings require an external model endpoint","persistent_uploads":False}

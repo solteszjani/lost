@@ -49,3 +49,12 @@ A frissített verzió automatikusan hozzáadja a `district` oszlopot a meglévő
 - A fényképes kereső a feltöltött képet a hirdetések képeivel perceptuális képhash alapján hasonlítja össze. Ez hasonló vizuális mintákat kereső előszűrés, nem mesterséges intelligenciás tárgyfelismerés; a találati százalék nem bizonyítja a tárgy azonosságát.
 - A képfeldolgozáshoz a szerver `Pillow` csomagot használja, amely már szerepel a `server/requirements.txt` fájlban.
 - Fontos: a profilképek és hirdetésképek jelenlegi feltöltése a szerver `uploads` könyvtárába ment. Vercel szerveren ez nem tartós tárhely; éles használathoz Vercel Blob vagy más objektumtár bekötése szükséges.
+
+
+## V9 adminisztráció és push értesítések
+
+- A Vercel Environment Variables között állítsd be az `ADMIN_EMAIL` értékét egy olyan e-mail-címre, amellyel admin fiókot regisztrálsz. Már létező felhasználónál a `users.role` mező értékét `admin`-ra kell állítani a Neon SQL Editorban.
+- Web Push-hoz generálj VAPID kulcspárt, majd állítsd be a `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` és `VAPID_SUBJECT` változókat. Ezután a felhasználó az Értesítések ablakban bekapcsolhatja a push-t.
+- Az admin menü csak admin jogosultságú fióknál jelenik meg. A moderációs API minden műveletnél szerveroldalon ellenőrzi a jogosultságot.
+- A képi keresés jelenlegi alapja perceptuális képhash. Ez nem szemantikus AI-tárgyfelismerés; valódi CLIP/SigLIP képi embedding szolgáltatás külön modellvégponttal és szolgáltatói hozzáféréssel kapcsolható be.
+- A Vercel helyi fájlrendszere nem tartós. Éles indulás előtt a feltöltéseket tartós objektumtárba (pl. Vercel Blob vagy S3-kompatibilis tárhely) kell átállítani.

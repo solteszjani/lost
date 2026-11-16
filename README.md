@@ -71,3 +71,24 @@ Saját projektváz, szabadon módosítható.
 ## Webalkalmazás és telefonos nézet
 
 A webes felület reszponzív: telefonon egyoszlopos, érintésre optimalizált elrendezést használ, nagyobb kijelzőn többoszlopos nézetet. HTTPS-en telepíthető PWA-ként is: Androidon a böngésző „Telepítés” / „Kezdőképernyőhöz adás” menüpontjával, iPhone-on Safari → Megosztás → Főképernyőhöz adás. A PWA telepítéséhez HTTPS szükséges (localhost fejlesztéskor kivétel).
+
+
+## Budapest V2 – közösségi funkciók
+
+- Interaktív OpenStreetMap/Leaflet térkép, kerület- és típusfilter, saját helyzet körüli sugárszűrés. A térképes pont megadásához a bejelentésnél a „Jelenlegi helyem megadása” gomb használható; a térképen lévő pontokra kattintva is megnyitható a hirdetés.
+- Automatikus, szöveg/kategória/kerület és – ha van koordináta – távolság alapú lehetséges egyezések. Új bejelentéskor a rendszer értesítést készít az érintett fiókoknak.
+- Értesítési központ és böngészőértesítés (a böngésző engedélyével, amíg az oldal fut).
+- Chat képfeltöltéssel, olvasási állapottal, archiválással és tiltással.
+- Profiladatok, sikeres visszaadások száma, értékelési átlag; opcionális telefonszám mentése.
+- Bejelentés lezárása „Sikeresen visszakerült” állapottal és összesített statisztikával.
+- A telefonszám és e-mail cím nem jelenik meg nyilvánosan a hirdetésben; a kapcsolat belső üzenetküldéssel történik.
+
+### Fontos üzemeltetési megjegyzések
+
+A térképet az OpenStreetMap csempéi és a Leaflet könyvtár jeleníti meg, ezért internetkapcsolat szükséges. A koordinátákat a felhasználó engedélyével, a böngésző helymeghatározása adja. A távolságszűrés csak akkor működik, ha a bejelentéshez koordináta tartozik.
+
+A jelenlegi egyezéskereső szabályalapú (leírás, cím, kategória, kerület, koordináták), nem képfelismerő mesterséges intelligencia. A kép feltöltése támogatott, de a fotók vizuális összehasonlítása külön képfelismerő szolgáltatást igényel.
+
+A telefonszám menthető, de SMS-kódos ellenőrzéshez külső SMS-szolgáltató és API-kulcs szükséges; addig a profil nem kap ellenőrzött jelzést. A böngészőértesítés nem garantált, ha a böngésző/oldal teljesen be van zárva; valódi háttér pushhoz Web Push kulcsok és szolgáltatói konfiguráció szükséges.
+
+A feltöltött képek jelenleg a szerver fájlrendszerébe kerülnek. Vercel szerveren ez nem tartós tárhely, ezért éles használat előtt Vercel Blob vagy más tartós objektumtár bekötése szükséges. Ne tölts fel éles adatot addig, amíg a tartós képtárhely és a push/SMS szolgáltatások nincsenek konfigurálva.

@@ -329,8 +329,32 @@ button{transition:filter .18s,transform .18s}.primary{background:linear-gradient
 .wrap{margin:0 auto 40px!important}
 @media(max-width:760px){.top{padding:10px 12px 0!important}.top .nav{margin-bottom:9px;gap:8px}.top .nav>div:first-child{min-width:100%;display:flex;align-items:center;gap:10px}.top .nav small{display:block!important;font-size:10px}.top .logo{font-size:23px!important}.brand-cover{height:155px;border-radius:12px 12px 0 0}.wrap{margin:0 auto 24px!important}}
 @media(max-width:420px){.brand-cover{height:125px}.top .nav-actions{gap:5px}.top .nav-actions button{font-size:10px;padding:8px 5px}}
+
+/* Találtam 4K márkafejléc – teljes szélességű banner */
+header.top{padding:0!important;margin:0!important;background:#07152e!important;color:#fff!important}
+.brand-cover{display:block!important;width:100%!important;max-width:none!important;height:auto!important;margin:0!important;padding:0!important;overflow:hidden!important;border-radius:0!important;background:#07152e!important;line-height:0}
+.brand-cover img{display:block!important;width:100%!important;height:auto!important;max-height:none!important;object-fit:contain!important;object-position:center!important}
+.nav-shell{width:100%;background:#07152e;border-bottom:1px solid rgba(90,130,190,.25)}
+.nav-shell .nav{max-width:1280px;margin:0 auto;padding:12px 20px;min-height:64px}
+.top .logo{color:#fff!important;font-family:Inter,system-ui,sans-serif!important;font-size:26px!important;font-weight:900!important}
+.top .logo span{color:#35e5e4!important}
+.top .nav small{color:#c9d8f4!important}
+.top .nav .ghost{background:#142849!important;color:#edf5ff!important;border:1px solid #35517b!important}
+.top .nav .primary{background:linear-gradient(110deg,#7846f4,#13cbd1)!important;color:#fff!important}
+.top .hero{display:none!important}
+.wrap{margin:22px auto 40px!important}
+@media(max-width:760px){
+ .nav-shell .nav{padding:10px 12px;flex-wrap:wrap}
+ .nav-shell .nav>div:first-child{min-width:100%;display:flex;align-items:center;gap:10px}
+ .nav-shell .nav small{display:block!important;font-size:10px}
+ .nav-shell .nav-actions{width:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+ .nav-shell .nav-actions button{min-width:0;padding:9px 5px;font-size:11px;white-space:normal}
+ .wrap{margin:16px auto 24px!important}
+}
+@media(max-width:390px){.nav-shell .nav-actions{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
 </style></head><body>
-<header class="top"><div class="nav"><div><div class="logo">Találtam<span>.</span></div><small>Elveszett és megtalált értékek közössége</small></div><div class="nav-actions"><button class="ghost" id="homeBtn" type="button">⌂ Kezdőlap</button><button class="ghost" id="notificationsBtn">Értesítések <span id="notificationCount"></span></button><button class="ghost" id="messagesBtn">Üzenetek</button><button class="ghost" id="myBtn">Saját hirdetéseim</button><button class="ghost hidden" id="profileBtn">Profilom</button><button class="primary" id="authBtn">Belépés / Regisztráció</button><button class="ghost hidden" id="logoutBtn">Kilépés</button></div></div><div class="brand-cover"><img src="/static/talaltam_facebook_cover.png" alt="Találtam – elveszett és talált tárgyak Budapesten"></div></header>
+<header class="top"><div class="brand-cover"><img src="/static/talaltam_header_4k.jpg" alt="Találtam – elveszett és talált tárgyak Budapesten" width="3840" height="1145" fetchpriority="high"></div><div class="nav-shell"><div class="nav"><div><div class="logo">Találtam<span>.</span></div><small>Elveszett és megtalált értékek közössége</small></div><div class="nav-actions"><button class="ghost" id="homeBtn" type="button">⌂ Kezdőlap</button><button class="ghost" id="notificationsBtn">Értesítések <span id="notificationCount"></span></button><button class="ghost" id="messagesBtn">Üzenetek</button><button class="ghost" id="myBtn">Saját hirdetéseim</button><button class="ghost hidden" id="profileBtn">Profilom</button><button class="primary" id="authBtn">Belépés / Regisztráció</button><button class="ghost hidden" id="logoutBtn">Kilépés</button></div></div></div></header>
 <main class="wrap">
 <div class="dashboard-launcher" aria-label="Fő funkciók">
  <button class="launcher-card active" data-open-view="listings"><span class="launcher-icon">⌕</span><span><b>Bejelentések</b><small>Elveszett és talált tárgyak</small></span><span class="launcher-arrow">↗</span></button>

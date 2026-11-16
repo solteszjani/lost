@@ -191,18 +191,30 @@ async def store_image_bytes(raw: bytes, filename: str, content_type: str, local_
     token = os.getenv("BLOB_READ_WRITE_TOKEN", "").strip()
     if token:
         try:
+            # Use the official Vercel Python Blob SDK. It reads BLOB_READ_WRITE_TOKEN
+            # from the environment by default; do not pass the secret through the
+            # request handler or expose it to the browser.
             from vercel.blob import AsyncBlobClient
             client = AsyncBlobClient()
             uploaded = await client.put(
                 f"talaltam/{local_prefix}/{filename}", raw,
                 access="public", add_random_suffix=True,
-                content_type=content_type, token=token,
+                content_type=content_type,
             )
-            return uploaded.url
+            url = getattr(uploaded, "url", None)
+            if not url:
+                raise RuntimeError("A Blob szolgáltatás nem adott vissza URL-t.")
+            return url
         except ImportError as exc:
-            raise HTTPException(503, "A Vercel Blob SDK nincs telepítve. Ellenőrizd a requirements.txt fájlt és telepítsd újra az alkalmazást.") from exc
+            print("[talaltam-upload] Vercel Blob SDK import error:", repr(exc))
+            raise HTTPException(503, "A Vercel Blob SDK nem érhető el. Ellenőrizd a telepítést és indíts új deployt.") from exc
+        except HTTPException:
+            raise
         except Exception as exc:
-            raise HTTPException(502, f"A kép feltöltése a Vercel Blob tárhelyre nem sikerült: {str(exc)[:240]}") from exc
+            # Keep the detailed cause in Vercel Function Logs, return a safe,
+            # actionable message to the client.
+            print("[talaltam-upload] Vercel Blob upload failed:", type(exc).__name__, repr(exc))
+            raise HTTPException(502, f"A Vercel Blob feltöltés sikertelen ({type(exc).__name__}). Ellenőrizd a BLOB_READ_WRITE_TOKEN értékét és a Blob store kapcsolatát.") from exc
     name=f"{local_prefix}_{filename}"
     (UPLOAD_DIR/name).write_bytes(raw)
     return f"/uploads/{name}"
@@ -778,13 +790,25 @@ def block_user(other_id:int,session:Session=Depends(db),user:UserRow=Depends(req
 
 @app.post("/messages/upload",status_code=201)
 async def upload_chat_image(image:UploadFile=File(...),user:UserRow=Depends(require_user)):
-    raw=await image.read()
-    if len(raw)>3*1024*1024: raise HTTPException(413,"A chatkép maximum 3 MB lehet. Válassz kisebb képet.")
-    if not (raw.startswith(b"\x89PNG\r\n\x1a\n") or raw.startswith(b"\xff\xd8\xff") or (raw[:4]==b"RIFF" and raw[8:12]==b"WEBP")): raise HTTPException(415,"Csak PNG, JPG vagy WEBP kép tölthető fel.")
-    ext="png" if raw.startswith(b"\x89PNG") else ("jpg" if raw.startswith(b"\xff\xd8") else "webp")
-    mime="image/png" if ext=="png" else ("image/jpeg" if ext=="jpg" else "image/webp")
-    url=await store_image_bytes(raw,f"user_{user.id}_{uuid4().hex}.{ext}",mime,"chat")
-    return {"image_url":url}
+    try:
+        raw=await image.read(3*1024*1024+1)
+        if not raw:
+            raise HTTPException(400,"Nem választottál ki képet.")
+        if len(raw)>3*1024*1024:
+            raise HTTPException(413,"A chatkép maximum 3 MB lehet. Válassz kisebb képet.")
+        if not (raw.startswith(b"\x89PNG\r\n\x1a\n") or raw.startswith(b"\xff\xd8\xff") or (raw[:4]==b"RIFF" and raw[8:12]==b"WEBP")):
+            raise HTTPException(415,"Csak érvényes PNG, JPG vagy WEBP kép tölthető fel.")
+        ext="png" if raw.startswith(b"\x89PNG") else ("jpg" if raw.startswith(b"\xff\xd8") else "webp")
+        mime="image/png" if ext=="png" else ("image/jpeg" if ext=="jpg" else "image/webp")
+        url=await store_image_bytes(raw,f"user_{user.id}_{uuid4().hex}.{ext}",mime,"chat")
+        return {"image_url":url}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print("[talaltam-upload] chat image route failed:", type(exc).__name__, repr(exc))
+        raise HTTPException(500,"A képfeltöltés szerveroldali hibába ütközött. Ellenőrizd a Vercel Function Logs naplót.") from exc
+    finally:
+        await image.close()
 
 # --- V9: moderáció, adminisztráció, web push ---
 import json

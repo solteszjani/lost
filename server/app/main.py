@@ -670,35 +670,81 @@ def push_unsubscribe(endpoint:str,session:Session=Depends(db),user:UserRow=Depen
 
 @app.get("/admin/overview")
 def admin_overview(session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
-    return {"users":session.query(UserRow).count(),"active_users":session.query(UserRow).filter(UserRow.is_active==True).count(),"listings":session.query(ListingRow).count(),"active_listings":session.query(ListingRow).filter(ListingRow.status=="active").count(),"resolved":session.query(ListingRow).filter(ListingRow.status=="resolved").count(),"open_reports":session.query(ReportRow).filter(ReportRow.status=="open").count()}
+    return {
+        "users":session.query(UserRow).count(),
+        "active_users":session.query(UserRow).filter(UserRow.is_active==True).count(),
+        "suspended_users":session.query(UserRow).filter(UserRow.is_active==False).count(),
+        "listings":session.query(ListingRow).filter(ListingRow.status!="deleted").count(),
+        "active_listings":session.query(ListingRow).filter(ListingRow.status=="active").count(),
+        "pending_listings":session.query(ListingRow).filter(ListingRow.status=="pending").count(),
+        "moderated_listings":session.query(ListingRow).filter(ListingRow.status=="moderated").count(),
+        "resolved":session.query(ListingRow).filter(ListingRow.status=="resolved").count(),
+        "deleted_listings":session.query(ListingRow).filter(ListingRow.status=="deleted").count(),
+        "open_reports":session.query(ReportRow).filter(ReportRow.status=="open").count(),
+        "reviewed_reports":session.query(ReportRow).filter(ReportRow.status=="reviewed").count(),
+    }
 
 @app.get("/admin/reports")
 def admin_reports(session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
     out=[]
-    for r in session.scalars(select(ReportRow).order_by(ReportRow.created_at.desc()).limit(200)).all():
-        listing=session.get(ListingRow,r.listing_id); reporter=session.get(UserRow,r.reporter_user_id) if r.reporter_user_id else None
-        out.append({"id":r.id,"listing_id":r.listing_id,"listing_title":listing.title if listing else "Törölt hirdetés","reason":r.reason,"status":r.status,"reporter":reporter.name if reporter else "Ismeretlen","created_at":r.created_at.isoformat()})
+    for r in session.scalars(select(ReportRow).order_by(ReportRow.created_at.desc()).limit(300)).all():
+        listing=session.get(ListingRow,r.listing_id)
+        reporter=session.get(UserRow,r.reporter_user_id) if r.reporter_user_id else None
+        owner=session.get(UserRow,listing.owner_user_id) if listing and listing.owner_user_id else None
+        out.append({"id":r.id,"listing_id":r.listing_id,"listing_title":listing.title if listing else "Törölt hirdetés",
+            "listing_status":listing.status if listing else "deleted","listing_kind":listing.kind if listing else None,
+            "listing_category":listing.category if listing else None,"listing_location":listing.location if listing else None,
+            "listing_image":listing.image_url if listing else None,"owner_name":owner.name if owner else "Ismeretlen",
+            "owner_email":owner.email if owner else None,"reason":r.reason,"status":r.status,
+            "reporter":reporter.name if reporter else "Ismeretlen","reporter_email":reporter.email if reporter else None,
+            "created_at":r.created_at.isoformat(),"reviewed_at":r.reviewed_at.isoformat() if r.reviewed_at else None})
     return out
 
 @app.post("/admin/reports/{report_id}/review")
 def admin_review(report_id:int,payload:ReviewIn,session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
     r=session.get(ReportRow,report_id)
     if not r: raise HTTPException(404,"A jelentés nem található.")
+    if payload.status not in ("reviewed","dismissed"): raise HTTPException(400,"Érvénytelen jelentésállapot.")
     r.status=payload.status; r.reviewed_by=admin.id; r.reviewed_at=datetime.utcnow(); session.commit(); return {"ok":True}
+
+@app.post("/admin/reports/{report_id}/approve")
+def admin_approve_report(report_id:int,session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
+    r=session.get(ReportRow,report_id)
+    if not r: raise HTTPException(404,"A jelentés nem található.")
+    listing=session.get(ListingRow,r.listing_id)
+    if listing and listing.status in ("pending","moderated"): listing.status="active"
+    r.status="reviewed"; r.reviewed_by=admin.id; r.reviewed_at=datetime.utcnow(); session.commit(); return {"ok":True}
 
 @app.post("/admin/listings/{listing_id}/hide")
 def admin_hide(listing_id:int,session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
     row=session.get(ListingRow,listing_id)
     if not row: raise HTTPException(404,"A hirdetés nem található.")
-    row.status="moderated"; session.commit()
-    if row.owner_user_id: session.add(NotificationRow(user_id=row.owner_user_id,title="Hirdetés elrejtve",body="A hirdetésedet adminisztrátori ellenőrzés miatt elrejtettük.",url="/")); session.commit()
-    return {"ok":True}
+    row.status="moderated"
+    if row.owner_user_id: session.add(NotificationRow(user_id=row.owner_user_id,title="Hirdetés felfüggesztve",body="A hirdetésedet adminisztrátori ellenőrzés miatt ideiglenesen felfüggesztettük.",url="/"))
+    session.commit(); return {"ok":True}
+
+@app.post("/admin/listings/{listing_id}/approve")
+def admin_approve_listing(listing_id:int,session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
+    row=session.get(ListingRow,listing_id)
+    if not row: raise HTTPException(404,"A hirdetés nem található.")
+    row.status="active"
+    if row.owner_user_id: session.add(NotificationRow(user_id=row.owner_user_id,title="Hirdetés jóváhagyva",body="Az adminisztrátor jóváhagyta a hirdetésedet. Mostantól ismét látható.",url="/"))
+    session.commit(); return {"ok":True}
+
+@app.delete("/admin/listings/{listing_id}")
+def admin_delete_listing(listing_id:int,session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
+    row=session.get(ListingRow,listing_id)
+    if not row: raise HTTPException(404,"A hirdetés nem található.")
+    row.status="deleted"
+    if row.owner_user_id: session.add(NotificationRow(user_id=row.owner_user_id,title="Hirdetés törölve",body="Az adminisztrátor eltávolította a hirdetésedet a közösségi felületről.",url="/"))
+    session.commit(); return {"ok":True}
 
 @app.post("/admin/users/{user_id}/suspend")
 def admin_suspend(user_id:int,session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
     target=session.get(UserRow,user_id)
     if not target: raise HTTPException(404,"Felhasználó nem található.")
     if target.id==admin.id: raise HTTPException(400,"Saját fiók nem függeszthető fel.")
+    if target.role=="admin": raise HTTPException(403,"Másik adminisztrátor fiókja innen nem függeszthető fel.")
     target.is_active=False; session.commit(); return {"ok":True}
 
 @app.post("/admin/users/{user_id}/restore")
@@ -707,9 +753,23 @@ def admin_restore(user_id:int,session:Session=Depends(db),admin:UserRow=Depends(
     if not target: raise HTTPException(404,"Felhasználó nem található.")
     target.is_active=True; session.commit(); return {"ok":True}
 
+@app.get("/admin/users")
+def admin_users(session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
+    rows=session.scalars(select(UserRow).order_by(UserRow.created_at.desc()).limit(300)).all()
+    return [{"id":u.id,"name":u.name,"email":u.email,"role":u.role,"is_active":u.is_active,"created_at":u.created_at.isoformat(),
+        "successful_returns":u.successful_returns,"rating_count":u.rating_count,
+        "rating_average":round((u.rating_sum/u.rating_count),2) if u.rating_count else None,
+        "listings_count":session.query(ListingRow).filter(ListingRow.owner_user_id==u.id,ListingRow.status!="deleted").count()} for u in rows]
+
 @app.get("/admin/listings")
 def admin_listings(session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
-    return [{**serialize(r),"owner_name":(session.get(UserRow,r.owner_user_id).name if r.owner_user_id and session.get(UserRow,r.owner_user_id) else "Ismeretlen")} for r in session.scalars(select(ListingRow).order_by(ListingRow.created_at.desc()).limit(150)).all()]
+    out=[]
+    for r in session.scalars(select(ListingRow).order_by(ListingRow.created_at.desc()).limit(300)).all():
+        owner=session.get(UserRow,r.owner_user_id) if r.owner_user_id else None
+        out.append({**serialize(r),"owner_name":owner.name if owner else "Ismeretlen","owner_email":owner.email if owner else None,
+            "created_at":r.created_at.isoformat(),"reports_count":session.query(ReportRow).filter(ReportRow.listing_id==r.id).count(),
+            "open_reports":session.query(ReportRow).filter(ReportRow.listing_id==r.id,ReportRow.status=="open").count()})
+    return out
 
 @app.get("/admin/health")
 def admin_health(session:Session=Depends(db),admin:UserRow=Depends(require_admin)):

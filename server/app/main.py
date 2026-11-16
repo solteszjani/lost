@@ -153,6 +153,7 @@ with engine.begin() as conn:
 app = FastAPI(title="Találtam API", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
+app.mount("/static", StaticFiles(directory=str(BASE / "static")), name="static")
 
 WEB_DIR = BASE / "static"
 

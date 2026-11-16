@@ -1,0 +1,41 @@
+TALÁLTAM V27 – VÁLTOZÁSOK
+
+1. ADMINISZTRÁCIÓ
+- Új műveleti napló az adminisztrátori moderációs és fiókkezelési eseményekhez.
+- Új Admin > Műveleti napló fül.
+- A meglévő jelentés-, hirdetés-, felhasználó- és rendszerállapot-kezelés megmaradt.
+
+2. ÉRTESÍTÉSI KÖZPONT
+- Összes és olvasatlan értesítések szűrése.
+- Külön gomb az összes értesítés olvasottnak jelölésére.
+- Az értesítési ablak megnyitása önmagában nem jelöli olvasottnak az értesítéseket.
+
+3. PROFIL ÉS MEGBÍZHATÓSÁG
+- Profil megnyitásakor a rendszer felsorolja a közös, lezárt ügyleteket, amelyek után még lehet értékelni.
+- 1–5 csillagos értékelés és nyilvános, legfeljebb 500 karakteres vélemény.
+- Csak közös, lezárt ügylet résztvevői értékelhetik egymást.
+- Egy felhasználó egy lezárt ügyletet csak egyszer értékelhet.
+- Új értékelésről a célfelhasználó értesítést kap.
+
+4. SZÖVEGES CHAT
+- Kliensoldali egyedi üzenetazonosító.
+- Egyszeri automatikus újrapróbálás hálózati hiba esetén.
+- Ugyanazon kérés ismétlése nem hoz létre duplikált üzenetet.
+- Az üzenet és az értesítés mentése nem vár szinkron push szolgáltatásra.
+- Hiba esetén a beírt szöveg a mezőben marad.
+
+5. MOBIL
+- Chat, profil, értesítések és admin felület teljes képernyős mobilnézetet kapott.
+- Jobban használható beszélgetéslista és üzenetmező kis képernyőn.
+- Biztonságos területek kezelése mobil böngészőkön.
+
+ADATBÁZIS
+- Új `admin_audit_logs` tábla automatikusan létrejön.
+- A `messages.client_message_id` mező automatikusan hozzáadódik a meglévő adatbázishoz.
+- Meglévő felhasználók, hirdetések és beszélgetések nem törlődnek.
+
+TESZTELÉS
+- Python szintaxisellenőrzés: sikeres.
+- JavaScript szintaxisellenőrzés: sikeres.
+- API próba SQLite tesztadatbázissal: profilból értékelés, vélemény megjelenítése és duplikált üzenetküldés elleni védelem sikeres.
+- Éles Vercel/Neon környezetben nem történt teszt.

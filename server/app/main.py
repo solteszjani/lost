@@ -86,6 +86,7 @@ class MessageRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     image_url: Mapped[str | None] = mapped_column(String(300), nullable=True)
     read_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    client_message_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
 
 class ReportRow(Base):
     __tablename__ = "reports"
@@ -129,6 +130,16 @@ class ArchiveRow(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     listing_id: Mapped[int] = mapped_column(Integer)
     other_user_id: Mapped[int] = mapped_column(Integer)
+
+class AdminAuditRow(Base):
+    __tablename__ = "admin_audit_logs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    actor_user_id: Mapped[int] = mapped_column(Integer, index=True)
+    action: Mapped[str] = mapped_column(String(80))
+    target_type: Mapped[str] = mapped_column(String(40))
+    target_id: Mapped[int] = mapped_column(Integer)
+    detail: Mapped[str] = mapped_column(String(500), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 class RatingRow(Base):
     __tablename__ = "ratings"
@@ -175,6 +186,7 @@ with engine.begin() as conn:
     mcols={c["name"] for c in inspect(engine).get_columns("messages")}
     if "image_url" not in mcols: conn.exec_driver_sql("ALTER TABLE messages ADD COLUMN image_url VARCHAR(300)")
     if "read_at" not in mcols: conn.exec_driver_sql("ALTER TABLE messages ADD COLUMN read_at TIMESTAMP")
+    if "client_message_id" not in mcols: conn.exec_driver_sql("ALTER TABLE messages ADD COLUMN client_message_id VARCHAR(64)")
     ucols={c["name"] for c in inspect(engine).get_columns("users")}
     if "role" not in ucols: conn.exec_driver_sql("ALTER TABLE users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user'")
     if "is_active" not in ucols: conn.exec_driver_sql("ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE" if engine.dialect.name=="postgresql" else "ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1")
@@ -436,14 +448,18 @@ def get_messages(listing_id:int, with_user:int | None = None, session:Session=De
 
 class MessageIn(BaseModel):
     body: str=Field(default="",max_length=4000)
-    image_url: str | None = None
     recipient_id: int | None = None
+    client_message_id: str | None = Field(default=None,max_length=64)
 
 @app.post("/messages/{listing_id}",status_code=201)
 def send_message(listing_id:int,payload:MessageIn,session:Session=Depends(db),user:UserRow=Depends(require_user)):
     listing=session.get(ListingRow,listing_id)
     if not listing or not listing.owner_user_id: raise HTTPException(404,"A hirdetés nem található.")
-    if not payload.body.strip() and not payload.image_url: raise HTTPException(400,"Írj üzenetet vagy csatolj képet.")
+    if not payload.body.strip(): raise HTTPException(400,"Írj üzenetet.")
+    if payload.client_message_id:
+        existing=session.scalar(select(MessageRow).where(MessageRow.sender_id==user.id,MessageRow.client_message_id==payload.client_message_id))
+        if existing:
+            return {"id":existing.id,"sender_id":existing.sender_id,"receiver_id":existing.receiver_id,"body":existing.body,"image_url":None,"read":bool(existing.read_at),"created_at":existing.created_at.isoformat(),"mine":True,"duplicate":True}
     if user.id == listing.owner_user_id:
         if not payload.recipient_id: raise HTTPException(400,"Válaszd ki a beszélgetőpartnert.")
         recipient_id=payload.recipient_id
@@ -455,9 +471,12 @@ def send_message(listing_id:int,payload:MessageIn,session:Session=Depends(db),us
         recipient_id=listing.owner_user_id
         if payload.recipient_id not in (None, recipient_id): raise HTTPException(403,"Érvénytelen címzett.")
     if session.scalar(select(BlockRow).where(or_(and_(BlockRow.blocker_id==user.id,BlockRow.blocked_id==recipient_id),and_(BlockRow.blocker_id==recipient_id,BlockRow.blocked_id==user.id)))): raise HTTPException(403,"A beszélgetés nem elérhető.")
-    row=MessageRow(listing_id=listing_id,sender_id=user.id,receiver_id=recipient_id,body=payload.body.strip(),image_url=payload.image_url)
-    session.add(row); session.commit(); session.refresh(row)
-    notify(session,recipient_id,"Új üzenet",f"Új üzeneted érkezett: {listing.title}","/"); session.commit()
+    row=MessageRow(listing_id=listing_id,sender_id=user.id,receiver_id=recipient_id,body=payload.body.strip(),image_url=None,client_message_id=payload.client_message_id)
+    session.add(row)
+    session.add(NotificationRow(user_id=recipient_id,title="Új üzenet",body=f"Új üzeneted érkezett: {listing.title}",url="/"))
+    # A chatüzenetet és az értesítést előbb tartósan elmentjük. A külső push-küldés
+    # nem futhat a kérés kritikus útvonalán, mert hálózati késés esetén elveszítené a gyors visszajelzést.
+    session.commit(); session.refresh(row)
     return {"id":row.id,"sender_id":row.sender_id,"receiver_id":row.receiver_id,"body":row.body,"image_url":row.image_url,"read":False,"created_at":row.created_at.isoformat(),"mine":True}
 
 def _conversation_list(session:Session,user:UserRow,archived:bool=False):
@@ -641,28 +660,25 @@ def profile(user_id:int, listing_id:int|None=None, session:Session=Depends(db), 
     from sqlalchemy import func
     u=session.get(UserRow,user_id)
     if not u: raise HTTPException(404,"A profil nem található.")
-    reviews=session.scalars(select(RatingRow).where(RatingRow.to_user_id==u.id).order_by(RatingRow.created_at.desc()).limit(30)).all()
+    reviews=session.scalars(select(RatingRow).where(RatingRow.to_user_id==u.id).order_by(RatingRow.created_at.desc()).limit(50)).all()
     review_items=[]
     for r in reviews:
-        author=session.get(UserRow,r.from_user_id)
-        listing=session.get(ListingRow,r.listing_id)
-        review_items.append({"score":r.score,"note":r.note or "","created_at":r.created_at.isoformat(),"from_name":author.name if author else "Törölt felhasználó","listing_title":listing.title if listing else "Lezárt ügylet"})
+        author=session.get(UserRow,r.from_user_id); listing=session.get(ListingRow,r.listing_id)
+        review_items.append({"id":r.id,"score":r.score,"note":r.note or "","created_at":r.created_at.isoformat(),"from_name":author.name if author else "Törölt felhasználó","listing_title":listing.title if listing else "Lezárt ügylet"})
     listings_count=session.scalar(select(func.count(ListingRow.id)).where(ListingRow.owner_user_id==u.id,ListingRow.status!="deleted")) or 0
     resolved_count=session.scalar(select(func.count(ListingRow.id)).where(ListingRow.owner_user_id==u.id,ListingRow.status=="resolved")) or 0
-    can_rate=False
-    rate_listing_title=None
-    if viewer and listing_id and viewer.id != u.id:
-        target_listing=session.get(ListingRow,listing_id)
-        participated = session.scalar(select(MessageRow.id).where(
-            MessageRow.listing_id==listing_id,
-            or_(and_(MessageRow.sender_id==viewer.id, MessageRow.receiver_id==u.id),
-                and_(MessageRow.sender_id==u.id, MessageRow.receiver_id==viewer.id))
-        ).limit(1))
-        if target_listing and target_listing.status=="resolved" and participated:
-            already=session.scalar(select(RatingRow).where(RatingRow.listing_id==listing_id,RatingRow.from_user_id==viewer.id))
-            can_rate=already is None
-            rate_listing_title=target_listing.title
-    return {"id":u.id,"name":u.name,"avatar_url":u.avatar_url,"phone_verified":bool(u.phone_verified),"successful_returns":u.successful_returns or 0,"rating":round((u.rating_sum or 0)/(u.rating_count or 1),1) if u.rating_count else None,"rating_count":u.rating_count or 0,"member_since":u.created_at.date().isoformat(),"listings_count":listings_count,"resolved_count":resolved_count,"reviews":review_items,"can_rate":can_rate,"rate_listing_title":rate_listing_title}
+    rate_options=[]
+    if viewer and viewer.id != u.id:
+        shared=session.scalars(select(ListingRow).join(MessageRow,MessageRow.listing_id==ListingRow.id).where(
+            ListingRow.status=="resolved",
+            or_(and_(MessageRow.sender_id==viewer.id,MessageRow.receiver_id==u.id),and_(MessageRow.sender_id==u.id,MessageRow.receiver_id==viewer.id))
+        ).distinct().order_by(ListingRow.resolved_at.desc().nullslast(),ListingRow.created_at.desc())).all()
+        for item in shared:
+            already=session.scalar(select(RatingRow.id).where(RatingRow.listing_id==item.id,RatingRow.from_user_id==viewer.id))
+            if not already: rate_options.append({"id":item.id,"title":item.title,"resolved_at":item.resolved_at.isoformat() if item.resolved_at else None})
+    can_rate=bool(rate_options)
+    selected=next((x for x in rate_options if x["id"]==listing_id),rate_options[0] if rate_options else None)
+    return {"id":u.id,"name":u.name,"avatar_url":u.avatar_url,"phone_verified":bool(u.phone_verified),"successful_returns":u.successful_returns or 0,"rating":round((u.rating_sum or 0)/(u.rating_count or 1),1) if u.rating_count else None,"rating_count":u.rating_count or 0,"member_since":u.created_at.date().isoformat(),"listings_count":listings_count,"resolved_count":resolved_count,"reviews":review_items,"can_rate":can_rate,"rate_options":rate_options,"rate_listing_id":selected["id"] if selected else None,"rate_listing_title":selected["title"] if selected else None}
 
 class PhoneIn(BaseModel): phone:str=Field(min_length=8,max_length=30)
 @app.post("/profile/phone")
@@ -753,17 +769,13 @@ def rate_user(payload:RatingIn,session:Session=Depends(db),user:UserRow=Depends(
     target=session.get(UserRow,target_id) if target_id else None
     if not listing or listing.status!="resolved" or not target or target.id==user.id:
         raise HTTPException(400,"Értékelés csak lezárt ügylet résztvevőjének adható.")
-    participated=session.scalar(select(MessageRow.id).where(
-        MessageRow.listing_id==listing.id,
-        or_(and_(MessageRow.sender_id==user.id,MessageRow.receiver_id==target.id),
-            and_(MessageRow.sender_id==target.id,MessageRow.receiver_id==user.id))
-    ).limit(1))
-    if not participated:
-        raise HTTPException(403,"Csak a beszélgetés résztvevőjét értékelheted.")
+    participated=session.scalar(select(MessageRow.id).where(MessageRow.listing_id==listing.id,or_(and_(MessageRow.sender_id==user.id,MessageRow.receiver_id==target.id),and_(MessageRow.sender_id==target.id,MessageRow.receiver_id==user.id))).limit(1))
+    if not participated: raise HTTPException(403,"Csak a lezárt ügylet beszélgetésének résztvevőjét értékelheted.")
     if session.scalar(select(RatingRow).where(RatingRow.listing_id==listing.id,RatingRow.from_user_id==user.id)):
         raise HTTPException(409,"Ezt a teljesítést már értékelted.")
-    session.add(RatingRow(listing_id=listing.id,from_user_id=user.id,to_user_id=target.id,score=payload.score,note=payload.note))
+    session.add(RatingRow(listing_id=listing.id,from_user_id=user.id,to_user_id=target.id,score=payload.score,note=payload.note.strip()))
     target.rating_sum=(target.rating_sum or 0)+payload.score; target.rating_count=(target.rating_count or 0)+1
+    notify(session,target.id,"Új értékelés érkezett",f"{user.name} értékelte a közös ügyletet: {listing.title}",f"/?profile={target.id}")
     session.commit(); return {"ok":True}
 
 @app.post("/conversations/{listing_id}/{other_id}/archive")
@@ -787,28 +799,6 @@ def block_user(other_id:int,session:Session=Depends(db),user:UserRow=Depends(req
     if not session.scalar(select(BlockRow).where(BlockRow.blocker_id==user.id,BlockRow.blocked_id==other_id)):
         session.add(BlockRow(blocker_id=user.id,blocked_id=other_id)); session.commit()
     return {"ok":True}
-
-@app.post("/messages/upload",status_code=201)
-async def upload_chat_image(image:UploadFile=File(...),user:UserRow=Depends(require_user)):
-    try:
-        raw=await image.read(3*1024*1024+1)
-        if not raw:
-            raise HTTPException(400,"Nem választottál ki képet.")
-        if len(raw)>3*1024*1024:
-            raise HTTPException(413,"A chatkép maximum 3 MB lehet. Válassz kisebb képet.")
-        if not (raw.startswith(b"\x89PNG\r\n\x1a\n") or raw.startswith(b"\xff\xd8\xff") or (raw[:4]==b"RIFF" and raw[8:12]==b"WEBP")):
-            raise HTTPException(415,"Csak érvényes PNG, JPG vagy WEBP kép tölthető fel.")
-        ext="png" if raw.startswith(b"\x89PNG") else ("jpg" if raw.startswith(b"\xff\xd8") else "webp")
-        mime="image/png" if ext=="png" else ("image/jpeg" if ext=="jpg" else "image/webp")
-        url=await store_image_bytes(raw,f"user_{user.id}_{uuid4().hex}.{ext}",mime,"chat")
-        return {"image_url":url}
-    except HTTPException:
-        raise
-    except Exception as exc:
-        print("[talaltam-upload] chat image route failed:", type(exc).__name__, repr(exc))
-        raise HTTPException(500,"A képfeltöltés szerveroldali hibába ütközött. Ellenőrizd a Vercel Function Logs naplót.") from exc
-    finally:
-        await image.close()
 
 # --- V9: moderáció, adminisztráció, web push ---
 import json
@@ -849,6 +839,18 @@ def push_unsubscribe(endpoint:str,session:Session=Depends(db),user:UserRow=Depen
     if row: session.delete(row); session.commit()
     return {"ok":True}
 
+def audit_admin(session,admin,action,target_type,target_id,detail=""):
+    session.add(AdminAuditRow(actor_user_id=admin.id,action=action,target_type=target_type,target_id=target_id,detail=(detail or "")[:500]))
+
+@app.get("/admin/audit")
+def admin_audit(session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
+    rows=session.scalars(select(AdminAuditRow).order_by(AdminAuditRow.created_at.desc()).limit(200)).all()
+    out=[]
+    for r in rows:
+        actor=session.get(UserRow,r.actor_user_id)
+        out.append({"id":r.id,"actor":actor.name if actor else "Admin","action":r.action,"target_type":r.target_type,"target_id":r.target_id,"detail":r.detail,"created_at":r.created_at.isoformat()})
+    return out
+
 @app.get("/admin/overview")
 def admin_overview(session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
     return {
@@ -886,7 +888,7 @@ def admin_review(report_id:int,payload:ReviewIn,session:Session=Depends(db),admi
     r=session.get(ReportRow,report_id)
     if not r: raise HTTPException(404,"A jelentés nem található.")
     if payload.status not in ("reviewed","dismissed"): raise HTTPException(400,"Érvénytelen jelentésállapot.")
-    r.status=payload.status; r.reviewed_by=admin.id; r.reviewed_at=datetime.utcnow(); session.commit(); return {"ok":True}
+    r.status=payload.status; r.reviewed_by=admin.id; r.reviewed_at=datetime.utcnow(); audit_admin(session,admin,"report_review", "report", r.id, payload.status); session.commit(); return {"ok":True}
 
 @app.post("/admin/reports/{report_id}/approve")
 def admin_approve_report(report_id:int,session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
@@ -894,7 +896,7 @@ def admin_approve_report(report_id:int,session:Session=Depends(db),admin:UserRow
     if not r: raise HTTPException(404,"A jelentés nem található.")
     listing=session.get(ListingRow,r.listing_id)
     if listing and listing.status in ("pending","moderated"): listing.status="active"
-    r.status="reviewed"; r.reviewed_by=admin.id; r.reviewed_at=datetime.utcnow(); session.commit(); return {"ok":True}
+    r.status="reviewed"; r.reviewed_by=admin.id; r.reviewed_at=datetime.utcnow(); audit_admin(session,admin,"report_approve","report",r.id); session.commit(); return {"ok":True}
 
 @app.post("/admin/listings/{listing_id}/hide")
 def admin_hide(listing_id:int,session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
@@ -902,7 +904,7 @@ def admin_hide(listing_id:int,session:Session=Depends(db),admin:UserRow=Depends(
     if not row: raise HTTPException(404,"A hirdetés nem található.")
     row.status="moderated"
     if row.owner_user_id: session.add(NotificationRow(user_id=row.owner_user_id,title="Hirdetés felfüggesztve",body="A hirdetésedet adminisztrátori ellenőrzés miatt ideiglenesen felfüggesztettük.",url="/"))
-    session.commit(); return {"ok":True}
+    audit_admin(session,admin,"listing_hide","listing",row.id); session.commit(); return {"ok":True}
 
 @app.post("/admin/listings/{listing_id}/approve")
 def admin_approve_listing(listing_id:int,session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
@@ -910,7 +912,7 @@ def admin_approve_listing(listing_id:int,session:Session=Depends(db),admin:UserR
     if not row: raise HTTPException(404,"A hirdetés nem található.")
     row.status="active"
     if row.owner_user_id: session.add(NotificationRow(user_id=row.owner_user_id,title="Hirdetés jóváhagyva",body="Az adminisztrátor jóváhagyta a hirdetésedet. Mostantól ismét látható.",url="/"))
-    session.commit(); return {"ok":True}
+    audit_admin(session,admin,"listing_approve","listing",row.id); session.commit(); return {"ok":True}
 
 @app.delete("/admin/listings/{listing_id}")
 def admin_delete_listing(listing_id:int,session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
@@ -918,7 +920,7 @@ def admin_delete_listing(listing_id:int,session:Session=Depends(db),admin:UserRo
     if not row: raise HTTPException(404,"A hirdetés nem található.")
     row.status="deleted"; row.deleted_at=datetime.utcnow()
     if row.owner_user_id: session.add(NotificationRow(user_id=row.owner_user_id,title="Hirdetés törölve",body="Az adminisztrátor eltávolította a hirdetésedet a közösségi felületről.",url="/"))
-    session.commit(); return {"ok":True}
+    audit_admin(session,admin,"listing_delete","listing",row.id); session.commit(); return {"ok":True}
 
 @app.post("/admin/users/{user_id}/suspend")
 def admin_suspend(user_id:int,session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
@@ -926,13 +928,13 @@ def admin_suspend(user_id:int,session:Session=Depends(db),admin:UserRow=Depends(
     if not target: raise HTTPException(404,"Felhasználó nem található.")
     if target.id==admin.id: raise HTTPException(400,"Saját fiók nem függeszthető fel.")
     if target.role=="admin": raise HTTPException(403,"Másik adminisztrátor fiókja innen nem függeszthető fel.")
-    target.is_active=False; session.commit(); return {"ok":True}
+    target.is_active=False; audit_admin(session,admin,"user_suspend","user",target.id); session.commit(); return {"ok":True}
 
 @app.post("/admin/users/{user_id}/restore")
 def admin_restore(user_id:int,session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
     target=session.get(UserRow,user_id)
     if not target: raise HTTPException(404,"Felhasználó nem található.")
-    target.is_active=True; session.commit(); return {"ok":True}
+    target.is_active=True; audit_admin(session,admin,"user_restore","user",target.id); session.commit(); return {"ok":True}
 
 @app.get("/admin/users")
 def admin_users(session:Session=Depends(db),admin:UserRow=Depends(require_admin)):

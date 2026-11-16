@@ -112,3 +112,15 @@ A feltöltött képek jelenleg a szerver fájlrendszerébe kerülnek. Vercel sze
 1. Tartós képtárolás (Vercel Blob vagy S3 kompatibilis szolgáltatás). A Vercel ideiglenes fájlrendszerén tárolt feltöltések nem garantáltan maradnak meg.
 2. Valódi szemantikus AI-képfelismeréshez CLIP/SigLIP modellvégpont vagy külső AI szolgáltató és API-kulcs szükséges. A beépített keresés jelenleg perceptuális képhash-alapú vizuális hasonlóságot ad, nem garantál azonos tárgy felismerést eltérő szögből készült képeken.
 3. Push értesítéshez VAPID kulcspár szükséges (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`).
+
+## V27 – közösségi, admin és chat fejlesztések
+
+- Bővített adminisztrációs műveleti napló: moderációs döntések, hirdetésműveletek és fiókfelfüggesztések rögzítése.
+- Nyilvános profilból értékelhető minden olyan felhasználó, akivel a bejelentkezett tag közös, lezárt ügyletben vett részt; a profil felsorolja az értékelhető lezárt ügyleteket.
+- Az értékeléshez opcionális, legfeljebb 500 karakteres nyilvános vélemény tartozhat; új értékelésről értesítés készül.
+- Értesítési központ: összes/olvasatlan szűrés, külön „összes olvasottnak” művelet.
+- Szöveges chat: idempotens kliensüzenet-azonosító és egyszeri automatikus újrapróbálás, így hálózati megszakadáskor nem keletkezik duplikált üzenet.
+- A chatüzenet és az értesítés adatbázisba mentése nem vár szinkron push-hálózati hívásra.
+- Mobilon teljes képernyős chat/profil/értesítés/admin felületek, biztonságos alsó/felső margókkal.
+
+A meglévő adatbázis megőrzésével indul. Új adatbázis-objektum: `admin_audit_logs`; a `messages` táblában új, opcionális `client_message_id` mező jön létre automatikusan.

@@ -639,9 +639,14 @@ def profile(user_id:int, listing_id:int|None=None, session:Session=Depends(db), 
     resolved_count=session.scalar(select(func.count(ListingRow.id)).where(ListingRow.owner_user_id==u.id,ListingRow.status=="resolved")) or 0
     can_rate=False
     rate_listing_title=None
-    if viewer and listing_id:
+    if viewer and listing_id and viewer.id != u.id:
         target_listing=session.get(ListingRow,listing_id)
-        if target_listing and target_listing.status=="resolved" and target_listing.owner_user_id==u.id and viewer.id!=u.id:
+        participated = session.scalar(select(MessageRow.id).where(
+            MessageRow.listing_id==listing_id,
+            or_(and_(MessageRow.sender_id==viewer.id, MessageRow.receiver_id==u.id),
+                and_(MessageRow.sender_id==u.id, MessageRow.receiver_id==viewer.id))
+        ).limit(1))
+        if target_listing and target_listing.status=="resolved" and participated:
             already=session.scalar(select(RatingRow).where(RatingRow.listing_id==listing_id,RatingRow.from_user_id==viewer.id))
             can_rate=already is None
             rate_listing_title=target_listing.title
@@ -728,13 +733,26 @@ async def search_by_image(image: UploadFile=File(...), session: Session=Depends(
     results.sort(key=lambda x:x["image_similarity"],reverse=True)
     return {"results":results[:20],"method":"perceptual_hash","note":"A képi hasonlóság előszűrés. A hasonló szín- és fényviszonyok befolyásolhatják az eredményt."}
 
-class RatingIn(BaseModel): listing_id:int; score:int=Field(ge=1,le=5); note:str=Field(default="",max_length=500)
+class RatingIn(BaseModel): listing_id:int; score:int=Field(ge=1,le=5); note:str=Field(default="",max_length=500); target_user_id:int|None=None
 @app.post("/ratings",status_code=201)
 def rate_user(payload:RatingIn,session:Session=Depends(db),user:UserRow=Depends(require_user)):
     listing=session.get(ListingRow,payload.listing_id)
-    if not listing or listing.status!="resolved" or not listing.owner_user_id or listing.owner_user_id==user.id: raise HTTPException(400,"Értékelés csak lezárt ügylet után adható.")
-    if session.scalar(select(RatingRow).where(RatingRow.listing_id==listing.id,RatingRow.from_user_id==user.id)): raise HTTPException(409,"Ezt a teljesítést már értékelted.")
-    session.add(RatingRow(listing_id=listing.id,from_user_id=user.id,to_user_id=listing.owner_user_id,score=payload.score,note=payload.note)); target=session.get(UserRow,listing.owner_user_id); target.rating_sum=(target.rating_sum or 0)+payload.score; target.rating_count=(target.rating_count or 0)+1; session.commit(); return {"ok":True}
+    target_id=payload.target_user_id or (listing.owner_user_id if listing else None)
+    target=session.get(UserRow,target_id) if target_id else None
+    if not listing or listing.status!="resolved" or not target or target.id==user.id:
+        raise HTTPException(400,"Értékelés csak lezárt ügylet résztvevőjének adható.")
+    participated=session.scalar(select(MessageRow.id).where(
+        MessageRow.listing_id==listing.id,
+        or_(and_(MessageRow.sender_id==user.id,MessageRow.receiver_id==target.id),
+            and_(MessageRow.sender_id==target.id,MessageRow.receiver_id==user.id))
+    ).limit(1))
+    if not participated:
+        raise HTTPException(403,"Csak a beszélgetés résztvevőjét értékelheted.")
+    if session.scalar(select(RatingRow).where(RatingRow.listing_id==listing.id,RatingRow.from_user_id==user.id)):
+        raise HTTPException(409,"Ezt a teljesítést már értékelted.")
+    session.add(RatingRow(listing_id=listing.id,from_user_id=user.id,to_user_id=target.id,score=payload.score,note=payload.note))
+    target.rating_sum=(target.rating_sum or 0)+payload.score; target.rating_count=(target.rating_count or 0)+1
+    session.commit(); return {"ok":True}
 
 @app.post("/conversations/{listing_id}/{other_id}/archive")
 def archive_conversation(listing_id:int,other_id:int,session:Session=Depends(db),user:UserRow=Depends(require_user)):
@@ -761,7 +779,7 @@ def block_user(other_id:int,session:Session=Depends(db),user:UserRow=Depends(req
 @app.post("/messages/upload",status_code=201)
 async def upload_chat_image(image:UploadFile=File(...),user:UserRow=Depends(require_user)):
     raw=await image.read()
-    if len(raw)>5*1024*1024: raise HTTPException(413,"A kép maximum 5 MB lehet.")
+    if len(raw)>3*1024*1024: raise HTTPException(413,"A chatkép maximum 3 MB lehet. Válassz kisebb képet.")
     if not (raw.startswith(b"\x89PNG\r\n\x1a\n") or raw.startswith(b"\xff\xd8\xff") or (raw[:4]==b"RIFF" and raw[8:12]==b"WEBP")): raise HTTPException(415,"Csak PNG, JPG vagy WEBP kép tölthető fel.")
     ext="png" if raw.startswith(b"\x89PNG") else ("jpg" if raw.startswith(b"\xff\xd8") else "webp")
     mime="image/png" if ext=="png" else ("image/jpeg" if ext=="jpg" else "image/webp")

@@ -31,3 +31,7 @@ A séma első induláskor automatikusan létrejön a Neon adatbázisban.
 
 ## Felület használata
 A hirdetésfeladás külön „Új hirdetés” gomb mögötti ablakban nyílik meg. Vendégként a látogatók a hirdetéseket megtekinthetik; új hirdetés feladásához és üzenetküldéshez be kell jelentkezniük. A szerveroldali végpontok is bejelentkezést követelnek meg.
+
+
+## Budapest kerület szerinti hirdetések
+A frissített verzió automatikusan hozzáadja a `district` oszlopot a meglévő `listings` táblához. A régi hirdetések megmaradnak, de a kerületük üres marad; ezeket a tulajdonosnak később szerkesztéssel kell kiegészítenie. Az új hirdetéshez már kötelező a 23 budapesti kerület egyikének kiválasztása.

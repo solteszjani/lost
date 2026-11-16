@@ -46,6 +46,7 @@ class ListingRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     owner_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     show_owner_name: Mapped[bool] = mapped_column(default=True, nullable=False)
+    district: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
 
 class UserRow(Base):
     __tablename__ = "users"
@@ -91,6 +92,10 @@ with engine.begin() as conn:
             if engine.dialect.name == "postgresql"
             else "ALTER TABLE listings ADD COLUMN show_owner_name BOOLEAN NOT NULL DEFAULT 1"
         )
+with engine.begin() as conn:
+    cols = {c["name"] for c in inspect(engine).get_columns("listings")}
+    if "district" not in cols:
+        conn.exec_driver_sql("ALTER TABLE listings ADD COLUMN district VARCHAR(40)")
 app = FastAPI(title="Találtam API", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
@@ -133,7 +138,7 @@ def serialize(row: ListingRow):
     return {"id": row.id, "owner_user_id": row.owner_user_id, "kind": row.kind, "title": row.title, "description": row.description,
             "category": row.category, "location": row.location, "date": row.date,
             "contact": row.contact, "image_url": row.image_url, "status": row.status,
-            "show_owner_name": bool(row.show_owner_name), "owner_name": (None if not row.show_owner_name else None)}
+            "show_owner_name": bool(row.show_owner_name), "district": row.district, "owner_name": (None if not row.show_owner_name else None)}
 
 class RegisterIn(BaseModel):
     name: str = Field(min_length=2, max_length=60)
@@ -183,10 +188,11 @@ def me(user: UserRow | None = Depends(current_user)):
 def health(): return {"status": "ok", "app": "Találtam"}
 
 @app.get("/listings")
-def list_listings(kind: str | None = None, category: str | None = None, q: str | None = None, session: Session = Depends(db)):
+def list_listings(kind: str | None = None, category: str | None = None, district: str | None = None, q: str | None = None, session: Session = Depends(db)):
     stmt = select(ListingRow).where(ListingRow.status == "active").order_by(ListingRow.created_at.desc())
     if kind: stmt = stmt.where(ListingRow.kind == kind)
     if category: stmt = stmt.where(ListingRow.category == category)
+    if district: stmt = stmt.where(ListingRow.district == district)
     rows = session.scalars(stmt).all()
     if q:
         term = q.casefold()
@@ -197,9 +203,10 @@ def list_listings(kind: str | None = None, category: str | None = None, q: str |
 async def create_listing(
     kind: str = Form(...), title: str = Form(...), description: str = Form(...),
     category: str = Form(...), location: str = Form(...), date_text: str = Form(..., alias="date"),
-    contact: str = Form(...), show_owner_name: bool = Form(True), image: UploadFile | None = File(default=None), session: Session = Depends(db), user: UserRow = Depends(require_user)
+    contact: str = Form(...), show_owner_name: bool = Form(True), district: str = Form(...), image: UploadFile | None = File(default=None), session: Session = Depends(db), user: UserRow = Depends(require_user)
 ):
     if kind not in ("Elveszett", "Talált"): raise HTTPException(400, "Érvénytelen bejelentéstípus.")
+    if district not in [f"{i}. kerület" for i in range(1,24)]: raise HTTPException(400, "Válassz budapesti kerületet.")
     if len(title.strip()) < 3 or len(description.strip()) < 10: raise HTTPException(400, "Túl rövid cím vagy leírás.")
     image_url = None
     if image:
@@ -212,17 +219,17 @@ async def create_listing(
         (UPLOAD_DIR / name).write_bytes(raw)
         image_url = f"/uploads/{name}"
     row = ListingRow(kind=kind, title=title.strip(), description=description.strip(), category=category,
-                     location=location.strip(), date=date_text.strip(), contact=contact.strip(), image_url=image_url, owner_user_id=user.id, show_owner_name=show_owner_name)
+                     location=location.strip(), date=date_text.strip(), contact=contact.strip(), image_url=image_url, owner_user_id=user.id, show_owner_name=show_owner_name, district=district)
     session.add(row); session.commit(); session.refresh(row)
     return serialize(row)
 
 @app.put("/listings/{listing_id}")
-async def update_listing(listing_id: int, kind: str = Form(...), title: str = Form(...), description: str = Form(...), category: str = Form(...), location: str = Form(...), date_text: str = Form(..., alias="date"), contact: str = Form(...), show_owner_name: bool = Form(True), image: UploadFile | None = File(default=None), session: Session = Depends(db), user: UserRow = Depends(require_user)):
+async def update_listing(listing_id: int, kind: str = Form(...), title: str = Form(...), description: str = Form(...), category: str = Form(...), location: str = Form(...), date_text: str = Form(..., alias="date"), contact: str = Form(...), show_owner_name: bool = Form(True), district: str = Form(...), image: UploadFile | None = File(default=None), session: Session = Depends(db), user: UserRow = Depends(require_user)):
     row=session.get(ListingRow, listing_id)
     if not row: raise HTTPException(404,"A hirdetés nem található.")
     if row.owner_user_id != user.id: raise HTTPException(403,"Csak a saját hirdetésedet módosíthatod.")
     if kind not in ("Elveszett","Talált") or len(title.strip())<3 or len(description.strip())<10: raise HTTPException(400,"Ellenőrizd a megadott adatokat.")
-    row.kind=kind; row.title=title.strip(); row.description=description.strip(); row.category=category; row.location=location.strip(); row.date=date_text.strip(); row.contact=contact.strip(); row.show_owner_name=show_owner_name
+    row.kind=kind; row.title=title.strip(); row.description=description.strip(); row.category=category; row.location=location.strip(); row.date=date_text.strip(); row.contact=contact.strip(); row.show_owner_name=show_owner_name; row.district=district
     if image:
         raw=await image.read()
         if len(raw)>8*1024*1024: raise HTTPException(413,"A kép maximum 8 MB lehet.")

@@ -1,7 +1,7 @@
 from datetime import datetime, date
 from pathlib import Path
 from uuid import uuid4
-import os, secrets, hashlib, hmac
+import os, secrets, hashlib, hmac, smtplib, re
 from datetime import timedelta
 
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, Response, Request
@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from sqlalchemy import create_engine, String, Text, Date, DateTime, Integer, Float, Boolean, ForeignKey, select, or_, and_
+from sqlalchemy import create_engine, String, Text, Date, DateTime, Integer, Float, Boolean, ForeignKey, select, or_, and_, inspect
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker, Session
 
 BASE = Path(__file__).resolve().parent.parent
@@ -50,6 +50,7 @@ class ListingRow(Base):
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
 
 class UserRow(Base):
     __tablename__ = "users"
@@ -66,6 +67,7 @@ class UserRow(Base):
     avatar_url: Mapped[str | None] = mapped_column(String(300), nullable=True)
     role: Mapped[str] = mapped_column(String(20), default="user", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
 class SessionRow(Base):
     __tablename__ = "user_sessions"
@@ -139,8 +141,17 @@ class RatingRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 Base.metadata.create_all(engine)
+with engine.begin() as conn:
+    listing_cols = {c["name"] for c in inspect(engine).get_columns("listings")}
+    if "deleted_at" not in listing_cols:
+        conn.exec_driver_sql("ALTER TABLE listings ADD COLUMN deleted_at TIMESTAMP")
+
+with engine.begin() as conn:
+    user_cols = {c["name"] for c in inspect(engine).get_columns("users")}
+    if "email_verified" not in user_cols:
+        conn.exec_driver_sql("ALTER TABLE users ADD COLUMN email_verified BOOLEAN NOT NULL DEFAULT TRUE")
+
 # Upgrade existing MVP databases without deleting existing listings.
-from sqlalchemy import inspect
 with engine.begin() as conn:
     cols = {c["name"] for c in inspect(engine).get_columns("listings")}
     if "owner_user_id" not in cols:
@@ -254,16 +265,31 @@ class LoginIn(BaseModel):
     email: str
     password: str
 
+def valid_email_syntax(email: str) -> bool:
+    email=email.strip()
+    if len(email)>190 or any(ch.isspace() for ch in email): return False
+    return bool(re.fullmatch(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+",email))
+
 @app.post("/auth/register", status_code=201)
 def register(payload: RegisterIn, response: Response, session: Session = Depends(db)):
-    email = payload.email.strip().lower()
-    if session.scalar(select(UserRow).where(UserRow.email == email)):
-        raise HTTPException(409, "Ezzel az e-mail-címmel már regisztráltak.")
+    email=payload.email.strip().lower()
+    if not valid_email_syntax(email):
+        raise HTTPException(422,"Adj meg érvényes e-mail-címet.")
+    if session.scalar(select(UserRow).where(UserRow.email==email)):
+        raise HTTPException(409,"Ezzel az e-mail-címmel már regisztráltak.")
     admin_email=os.getenv("ADMIN_EMAIL","").strip().lower()
-    user = UserRow(name=payload.name.strip(), email=email, password_hash=hash_password(payload.password), role=("admin" if admin_email and email==admin_email else "user"))
-    session.add(user); session.commit(); session.refresh(user)
-    issue_session(user, response, session)
-    return {"id": user.id, "name": user.name, "email": user.email}
+    user=UserRow(
+        name=payload.name.strip(),
+        email=email,
+        password_hash=hash_password(payload.password),
+        role=("admin" if admin_email and email==admin_email else "user"),
+        email_verified=True,
+    )
+    session.add(user)
+    session.commit()
+    issue_session(user,response,session)
+    return {"id":user.id,"name":user.name,"email":user.email}
+
 
 def issue_session(user, response, session):
     token = secrets.token_urlsafe(40)
@@ -291,6 +317,22 @@ def logout(request: Request, response: Response, session: Session = Depends(db))
 @app.get("/auth/me")
 def me(user: UserRow | None = Depends(current_user)):
     return {"user": ({"id":user.id,"name":user.name,"email":user.email,"avatar_url":user.avatar_url,"is_admin":is_admin_user(user)} if user else None)}
+
+@app.get("/cron/purge-deleted-listings")
+def purge_deleted_listings(request: Request, session: Session = Depends(db)):
+    secret=os.getenv("CRON_SECRET","").strip()
+    auth=request.headers.get("authorization","")
+    if not secret or not hmac.compare_digest(auth, f"Bearer {secret}"):
+        raise HTTPException(401,"Unauthorized")
+    cutoff=datetime.utcnow()-timedelta(days=10)
+    rows=session.scalars(select(ListingRow).where(ListingRow.status=="deleted",ListingRow.deleted_at.is_not(None),ListingRow.deleted_at<=cutoff)).all()
+    ids=[r.id for r in rows]
+    if ids:
+        for msg in session.scalars(select(MessageRow).where(MessageRow.listing_id.in_(ids))).all(): session.delete(msg)
+        for rating in session.scalars(select(RatingRow).where(RatingRow.listing_id.in_(ids))).all(): session.delete(rating)
+        for row in rows: session.delete(row)
+        session.commit()
+    return {"ok":True,"deleted_listings":len(ids)}
 
 @app.get("/health")
 def health(): return {"status": "ok", "app": "Találtam"}
@@ -361,7 +403,7 @@ def delete_listing(listing_id: int, session: Session=Depends(db), user: UserRow=
     row=session.get(ListingRow,listing_id)
     if not row: raise HTTPException(404,"A hirdetés nem található.")
     if row.owner_user_id != user.id: raise HTTPException(403,"Csak a saját hirdetésedet törölheted.")
-    row.status="deleted"; session.commit(); return {"ok":True}
+    row.status="deleted"; row.deleted_at=datetime.utcnow(); session.commit(); return {"ok":True}
 
 @app.get("/messages/{listing_id}")
 def get_messages(listing_id:int, with_user:int | None = None, session:Session=Depends(db), user:UserRow=Depends(require_user)):
@@ -536,6 +578,21 @@ def get_notifications(session:Session=Depends(db),user:UserRow=Depends(require_u
     rows=session.scalars(select(NotificationRow).where(NotificationRow.user_id==user.id).order_by(NotificationRow.created_at.desc()).limit(50)).all()
     return [{"id":n.id,"title":n.title,"body":n.body,"url":n.url,"read":n.read,"created_at":n.created_at.isoformat()} for n in rows]
 
+@app.delete("/notifications/{notification_id}")
+def delete_notification(notification_id:int,session:Session=Depends(db),user:UserRow=Depends(require_user)):
+    row=session.get(NotificationRow,notification_id)
+    if not row or row.user_id!=user.id: raise HTTPException(404,"Az értesítés nem található.")
+    session.delete(row); session.commit()
+    return {"ok":True}
+
+@app.delete("/notifications")
+def delete_all_notifications(session:Session=Depends(db),user:UserRow=Depends(require_user)):
+    rows=session.scalars(select(NotificationRow).where(NotificationRow.user_id==user.id)).all()
+    count=len(rows)
+    for row in rows: session.delete(row)
+    session.commit()
+    return {"ok":True,"deleted":count}
+
 @app.post("/notifications/read")
 def read_notifications(session:Session=Depends(db),user:UserRow=Depends(require_user)):
     for n in session.scalars(select(NotificationRow).where(NotificationRow.user_id==user.id,NotificationRow.read==False)).all(): n.read=True
@@ -606,7 +663,7 @@ async def upload_avatar(image: UploadFile=File(...), session: Session=Depends(db
 def delete_account(session: Session=Depends(db), user: UserRow=Depends(require_user)):
     # A felhasználó személyes adatait és kapcsolódó tartalmait eltávolítjuk; a közösségi hirdetéseket töröltként jelöljük.
     for listing in session.scalars(select(ListingRow).where(ListingRow.owner_user_id==user.id)).all():
-        listing.status="deleted"; listing.contact=""
+        listing.status="deleted"; listing.deleted_at=datetime.utcnow(); listing.contact=""
     for model in (SessionRow, NotificationRow, BlockRow, ArchiveRow, RatingRow, MessageRow):
         if model is BlockRow: session.query(model).filter(or_(model.blocker_id==user.id,model.blocked_id==user.id)).delete(synchronize_session=False)
         elif model is ArchiveRow: session.query(model).filter(model.user_id==user.id).delete(synchronize_session=False)
@@ -783,7 +840,7 @@ def admin_approve_listing(listing_id:int,session:Session=Depends(db),admin:UserR
 def admin_delete_listing(listing_id:int,session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
     row=session.get(ListingRow,listing_id)
     if not row: raise HTTPException(404,"A hirdetés nem található.")
-    row.status="deleted"
+    row.status="deleted"; row.deleted_at=datetime.utcnow()
     if row.owner_user_id: session.add(NotificationRow(user_id=row.owner_user_id,title="Hirdetés törölve",body="Az adminisztrátor eltávolította a hirdetésedet a közösségi felületről.",url="/"))
     session.commit(); return {"ok":True}
 

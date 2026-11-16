@@ -58,3 +58,14 @@ A frissített verzió automatikusan hozzáadja a `district` oszlopot a meglévő
 - Az admin menü csak admin jogosultságú fióknál jelenik meg. A moderációs API minden műveletnél szerveroldalon ellenőrzi a jogosultságot.
 - A képi keresés jelenlegi alapja perceptuális képhash. Ez nem szemantikus AI-tárgyfelismerés; valódi CLIP/SigLIP képi embedding szolgáltatás külön modellvégponttal és szolgáltatói hozzáféréssel kapcsolható be.
 - A Vercel helyi fájlrendszere nem tartós. Éles indulás előtt a feltöltéseket tartós objektumtárba (pl. Vercel Blob vagy S3-kompatibilis tárhely) kell átállítani.
+
+
+## Értesítések törlése
+
+Az értesítések külön-külön vagy egyben törölhetők. A törlés végleges, a rekordok azonnal törlődnek a Neon adatbázisból.
+
+## Törölt hirdetések automatikus végleges törlése
+
+A felhasználó által törölt hirdetés 10 napig visszamarad a `listings` táblában `deleted` állapottal. A Vercel napi, 03:00 UTC időpontú Cron Job a 10 napnál régebben törölt hirdetéseket és a hozzájuk tartozó üzeneteket/értékeléseket véglegesen törli.
+
+A Vercel Environment Variables részében állíts be egy erős, véletlenszerű `CRON_SECRET` értéket. A Vercel Cron ezt `Authorization: Bearer <CRON_SECRET>` fejléccel küldi.

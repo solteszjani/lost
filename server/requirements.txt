@@ -5,3 +5,4 @@ python-multipart==0.0.17
 pillow==11.0.0
 
 pywebpush==2.0.3
+vercel>=0.10.0,<1.0

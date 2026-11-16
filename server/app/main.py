@@ -175,6 +175,29 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 app.mount("/static", StaticFiles(directory=str(BASE / "static")), name="static")
 
+async def store_image_bytes(raw: bytes, filename: str, content_type: str, local_prefix: str = "image") -> str:
+    """Use durable Vercel Blob storage when configured; local fallback is for development only."""
+    token = os.getenv("BLOB_READ_WRITE_TOKEN", "").strip()
+    if token:
+        try:
+            from vercel.blob import AsyncBlobClient
+            client = AsyncBlobClient()
+            uploaded = await client.put(
+                f"talaltam/{local_prefix}/{filename}", raw,
+                access="public", add_random_suffix=True,
+                content_type=content_type, token=token,
+            )
+            return uploaded.url
+        except ImportError as exc:
+            raise HTTPException(503, "A Vercel Blob SDK nincs telepítve. Ellenőrizd a requirements.txt fájlt és telepítsd újra az alkalmazást.") from exc
+        except Exception as exc:
+            raise HTTPException(502, f"A kép feltöltése a Vercel Blob tárhelyre nem sikerült: {str(exc)[:240]}") from exc
+    name=f"{local_prefix}_{filename}"
+    (UPLOAD_DIR/name).write_bytes(raw)
+    return f"/uploads/{name}"
+
+
+
 WEB_DIR = BASE / "static"
 
 @app.get("/", include_in_schema=False)
@@ -309,9 +332,8 @@ async def create_listing(
         if not raw.startswith(b"\x89PNG\r\n\x1a\n") and not raw.startswith(b"\xff\xd8\xff") and not (raw[:4] == b"RIFF" and raw[8:12] == b"WEBP"):
             raise HTTPException(415, "Csak PNG, JPG vagy WEBP kép tölthető fel.")
         ext = "png" if raw.startswith(b"\x89PNG\r\n\x1a\n") else ("jpg" if raw.startswith(b"\xff\xd8\xff") else "webp")
-        name = f"{uuid4().hex}.{ext}"
-        (UPLOAD_DIR / name).write_bytes(raw)
-        image_url = f"/uploads/{name}"
+        mime = "image/png" if ext == "png" else ("image/jpeg" if ext == "jpg" else "image/webp")
+        image_url = await store_image_bytes(raw, f"{uuid4().hex}.{ext}", mime, "listings")
     row = ListingRow(kind=kind, title=title.strip(), description=description.strip(), category=category,
                      location=location.strip(), date=date_text.strip(), contact=contact.strip(), image_url=image_url, owner_user_id=user.id, show_owner_name=show_owner_name, district=district, latitude=latitude, longitude=longitude)
     session.add(row); session.commit(); session.refresh(row)
@@ -330,7 +352,8 @@ async def update_listing(listing_id: int, kind: str = Form(...), title: str = Fo
         if len(raw)>8*1024*1024: raise HTTPException(413,"A kép maximum 8 MB lehet.")
         if not raw.startswith(b"\x89PNG\r\n\x1a\n") and not raw.startswith(b"\xff\xd8\xff") and not (raw[:4]==b"RIFF" and raw[8:12]==b"WEBP"): raise HTTPException(415,"Csak PNG, JPG vagy WEBP kép tölthető fel.")
         ext="png" if raw.startswith(b"\x89PNG\r\n\x1a\n") else ("jpg" if raw.startswith(b"\xff\xd8\xff") else "webp")
-        name=f"{uuid4().hex}.{ext}"; (UPLOAD_DIR/name).write_bytes(raw); row.image_url=f"/uploads/{name}"
+        mime="image/png" if ext=="png" else ("image/jpeg" if ext=="jpg" else "image/webp")
+        row.image_url=await store_image_bytes(raw,f"{uuid4().hex}.{ext}",mime,"listings")
     session.commit(); session.refresh(row); return serialize(row)
 
 @app.delete("/listings/{listing_id}")
@@ -428,6 +451,25 @@ def notify(session,user_id,title,body,url="/"):
         send_web_push(session,user_id,title,body,url)
     except Exception:
         pass
+
+
+def read_listing_image_bytes(image_url: str) -> bytes | None:
+    """Read legacy local uploads or public Vercel Blob images for visual matching."""
+    if image_url.startswith("/uploads/"):
+        local_path = UPLOAD_DIR / Path(image_url).name
+        return local_path.read_bytes() if local_path.exists() else None
+    from urllib.parse import urlparse
+    from urllib.request import Request, urlopen
+    parsed = urlparse(image_url)
+    if parsed.scheme != "https" or not (parsed.hostname or "").endswith(".public.blob.vercel-storage.com"):
+        return None
+    try:
+        request = Request(image_url, headers={"User-Agent": "Talaltam-ImageMatcher/1.0"})
+        with urlopen(request, timeout=8) as response:
+            data = response.read(8 * 1024 * 1024 + 1)
+        return data if len(data) <= 8 * 1024 * 1024 else None
+    except Exception:
+        return None
 
 def similarity(a,b):
     import re, unicodedata
@@ -555,7 +597,9 @@ async def upload_avatar(image: UploadFile=File(...), session: Session=Depends(db
     if len(raw)>5*1024*1024: raise HTTPException(413,"A profilkép maximum 5 MB lehet.")
     if not (raw.startswith(b"\x89PNG\r\n\x1a\n") or raw.startswith(b"\xff\xd8\xff") or (raw[:4]==b"RIFF" and raw[8:12]==b"WEBP")): raise HTTPException(415,"Csak PNG, JPG vagy WEBP kép tölthető fel.")
     ext="png" if raw.startswith(b"\x89PNG") else ("jpg" if raw.startswith(b"\xff\xd8") else "webp")
-    name=f"avatar_{user.id}_{uuid4().hex}.{ext}"; (UPLOAD_DIR/name).write_bytes(raw); user.avatar_url=f"/uploads/{name}"; session.commit()
+    mime="image/png" if ext=="png" else ("image/jpeg" if ext=="jpg" else "image/webp")
+    user.avatar_url=await store_image_bytes(raw,f"user_{user.id}_{uuid4().hex}.{ext}",mime,"avatars")
+    session.commit()
     return {"avatar_url":user.avatar_url}
 
 @app.delete("/profile/account")
@@ -589,10 +633,10 @@ async def search_by_image(image: UploadFile=File(...), session: Session=Depends(
     rows=session.scalars(select(ListingRow).where(ListingRow.status=="active",ListingRow.image_url.is_not(None))).all()
     results=[]
     for row in rows:
-        path=UPLOAD_DIR / Path(row.image_url).name
-        if not path.exists(): continue
+        image_bytes=read_listing_image_bytes(row.image_url)
+        if not image_bytes: continue
         try:
-            candidate_hash=ahash(path.read_bytes())
+            candidate_hash=ahash(image_bytes)
             distance=sum(a!=b for a,b in zip(query_hash,candidate_hash))
             similarity_pct=round((1-distance/64)*100)
             if similarity_pct>=58:
@@ -629,8 +673,9 @@ async def upload_chat_image(image:UploadFile=File(...),user:UserRow=Depends(requ
     if len(raw)>5*1024*1024: raise HTTPException(413,"A kép maximum 5 MB lehet.")
     if not (raw.startswith(b"\x89PNG\r\n\x1a\n") or raw.startswith(b"\xff\xd8\xff") or (raw[:4]==b"RIFF" and raw[8:12]==b"WEBP")): raise HTTPException(415,"Csak PNG, JPG vagy WEBP kép tölthető fel.")
     ext="png" if raw.startswith(b"\x89PNG") else ("jpg" if raw.startswith(b"\xff\xd8") else "webp")
-    name=f"chat_{uuid4().hex}.{ext}"; (UPLOAD_DIR/name).write_bytes(raw); return {"image_url":f"/uploads/{name}"}
-
+    mime="image/png" if ext=="png" else ("image/jpeg" if ext=="jpg" else "image/webp")
+    url=await store_image_bytes(raw,f"user_{user.id}_{uuid4().hex}.{ext}",mime,"chat")
+    return {"image_url":url}
 
 # --- V9: moderáció, adminisztráció, web push ---
 import json
@@ -776,4 +821,7 @@ def admin_listings(session:Session=Depends(db),admin:UserRow=Depends(require_adm
 
 @app.get("/admin/health")
 def admin_health(session:Session=Depends(db),admin:UserRow=Depends(require_admin)):
-    return {"database":"ok","database_dialect":engine.dialect.name,"push_configured":bool(os.getenv("VAPID_PUBLIC_KEY") and os.getenv("VAPID_PRIVATE_KEY")),"image_search":"perceptual-hash baseline; AI embeddings require an external model endpoint","persistent_uploads":False}
+    return {"database":"ok","database_dialect":engine.dialect.name,"push_configured":bool(os.getenv("VAPID_PUBLIC_KEY") and os.getenv("VAPID_PRIVATE_KEY")),"image_search":"perceptual-hash baseline; AI embeddings require an external model endpoint", "persistent_uploads":bool(os.getenv("BLOB_READ_WRITE_TOKEN","").strip()) and __import__("importlib").util.find_spec("vercel") is not None,
+            "image_storage":"vercel_blob" if os.getenv("BLOB_READ_WRITE_TOKEN","").strip() and __import__("importlib").util.find_spec("vercel") is not None else "ephemeral_local",
+            "blob_token_configured":bool(os.getenv("BLOB_READ_WRITE_TOKEN","").strip()),
+            "blob_sdk_installed":__import__("importlib").util.find_spec("vercel") is not None}

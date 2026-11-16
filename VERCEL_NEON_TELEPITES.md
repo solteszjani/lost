@@ -27,3 +27,7 @@ A Neon tárolja a felhasználókat, munkameneteket, hirdetéseket és üzeneteke
 - `/` – Találtam webalkalmazás
 
 A séma első induláskor automatikusan létrejön a Neon adatbázisban.
+
+
+## Felület használata
+A hirdetésfeladás külön „Új hirdetés” gomb mögötti ablakban nyílik meg. Vendégként a látogatók a hirdetéseket megtekinthetik; új hirdetés feladásához és üzenetküldéshez be kell jelentkezniük. A szerveroldali végpontok is bejelentkezést követelnek meg.

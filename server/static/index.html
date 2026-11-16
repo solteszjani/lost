@@ -56,11 +56,124 @@
  .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 
+
+.new-listing-action{display:flex;justify-content:flex-end;margin:0 0 18px}
+.new-listing-btn{padding:13px 22px;font-size:15px;box-shadow:0 8px 22px #315ee82b}
+.create-dialog{max-width:720px}
+.create-dialog .panel{border:0;box-shadow:none;padding:0}
+.create-dialog .formgrid{grid-template-columns:1fr 1fr}
+.create-dialog .formgrid .full{grid-column:1/-1}
+.layout{grid-template-columns:minmax(0,1fr)}
+@media(max-width:760px){
+ .new-listing-action{position:sticky;top:8px;z-index:4}
+ .new-listing-btn{width:100%;min-height:48px}
+ .create-dialog .formgrid{grid-template-columns:1fr}
+ .create-dialog .formgrid .full{grid-column:auto}
+}
+
+/* Modern Találtam visual refresh */
+:root{
+ --ink:#17233b;--muted:#718096;--blue:#2563eb;--line:#e7edf5;--bg:#f4f7fb;
+ --accent:#12a68a;--surface:#ffffff;--shadow:0 18px 50px rgba(28,47,78,.08);
+}
+html{scroll-behavior:smooth}
+body{background:radial-gradient(ellipse at 12% 0%,#e9f2ff 0,transparent 35%),linear-gradient(180deg,#f7f9fc 0%,#f2f6fb 100%);color:var(--ink);letter-spacing:-.01em}
+.top{position:relative;overflow:hidden;background:linear-gradient(118deg,#101e3b 0%,#1b3970 48%,#2563eb 100%);padding:22px max(22px,calc((100% - 1180px)/2)) 78px}
+.top:before,.top:after{content:"";position:absolute;border-radius:50%;pointer-events:none}
+.top:before{width:420px;height:420px;right:-90px;top:-230px;background:rgba(255,255,255,.08)}
+.top:after{width:280px;height:280px;right:22%;bottom:-220px;border:1px solid rgba(255,255,255,.13)}
+.nav,.hero{position:relative;z-index:1}
+.logo{display:flex;align-items:center;gap:10px;font-size:25px;letter-spacing:-.04em}
+.logo:before{content:"⌕";display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:12px;background:rgba(255,255,255,.16);color:#b9f4e8;font-size:28px}
+.logo span{color:#7ee7d1}
+.nav small{display:block;margin:4px 0 0 46px;color:#c8d8f2;font-size:12px}
+.nav-actions{gap:8px}
+.nav button{border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.1);color:white;backdrop-filter:blur(10px);border-radius:12px;padding:10px 14px}
+.nav button.primary{background:#fff;color:#1c3970;border-color:#fff}
+.nav button:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.hero{max-width:1180px;margin:54px auto 0}
+.hero:before{content:"KÖZÖSSÉGI ELVESZETT-TÁRGY KERESŐ";display:inline-flex;align-items:center;padding:7px 11px;border:1px solid rgba(255,255,255,.2);border-radius:30px;background:rgba(255,255,255,.08);font-size:10px;font-weight:800;letter-spacing:.13em;color:#c8f8ee;margin-bottom:17px}
+.hero h1{max-width:690px;font-size:clamp(34px,5.3vw,58px);letter-spacing:-.055em;line-height:1.02;margin-bottom:17px}
+.hero p{font-size:16px;max-width:590px;color:#d9e5fa}
+.wrap{max-width:1180px;margin:-32px auto 54px;position:relative;z-index:2}
+.toolbar{padding:12px;gap:10px;border:1px solid rgba(226,233,244,.95);border-radius:18px;box-shadow:0 16px 45px rgba(24,43,75,.10)}
+.field{border:1px solid #e1e8f1;border-radius:12px;padding:13px 14px;background:#fbfcfe;transition:border-color .18s,box-shadow .18s,background .18s}
+.field:focus{background:white;border-color:#80a7ff;box-shadow:0 0 0 4px rgba(37,99,235,.10)}
+button{border-radius:12px;transition:transform .18s,box-shadow .18s,background .18s}
+button:active{transform:scale(.98)}
+.primary{background:linear-gradient(135deg,#2563eb,#3478f6);box-shadow:0 7px 18px rgba(37,99,235,.2)}
+.primary:hover{box-shadow:0 10px 24px rgba(37,99,235,.27);transform:translateY(-1px)}
+.secondary{background:#eaf2ff;color:#2455b6}
+.ghost{background:#f1f5f9;color:#34445e}
+.layout{gap:24px}
+.sectionhead{margin:4px 0 16px}
+.sectionhead h2{font-size:23px;letter-spacing:-.035em}
+.count{padding:6px 10px;background:#eaf0f8;border-radius:20px;font-weight:700}
+.grid{gap:17px}
+.listing{border:1px solid #e7edf5;border-radius:18px;box-shadow:0 7px 24px rgba(28,47,78,.045);transition:transform .2s,box-shadow .2s,border-color .2s}
+.listing:hover{transform:translateY(-4px);box-shadow:0 18px 38px rgba(28,47,78,.12);border-color:#d6e2f3}
+.photo{height:180px;background:linear-gradient(135deg,#e9f2ff,#edf9f6);color:#6c89b2}
+.content{padding:17px}
+.tag{padding:5px 10px;border-radius:8px;font-size:10px;letter-spacing:.02em}
+.tag.found{background:#e2f8f0;color:#087c5b}
+.category{font-weight:600}
+.content h3{font-size:18px;letter-spacing:-.025em}
+.desc{line-height:1.55}
+.meta{padding-top:10px;border-top:1px solid #eff2f7}
+.empty{border:1px dashed #cbd7e7;background:rgba(255,255,255,.75);border-radius:18px}
+.new-listing-action{margin:0 0 20px}
+.new-listing-btn{border-radius:14px;padding:14px 22px;font-weight:800;letter-spacing:-.01em}
+.modal{background:rgba(9,20,40,.64);backdrop-filter:blur(8px)}
+.dialog{border:1px solid rgba(255,255,255,.7);border-radius:22px;box-shadow:0 30px 90px rgba(0,0,0,.22);padding:26px}
+.close{background:#f1f5f9;color:#52627a}
+.dialog h2{letter-spacing:-.035em}
+.contact{background:#f3f7fc;border:1px solid #e5edf6;border-radius:13px}
+.auth-tabs{background:#f2f5fa;padding:5px;border-radius:13px}
+.auth-tabs button{border-radius:10px}
+.chat-layout{gap:14px}
+.threads,.chatbox{border:1px solid #e5ebf3;border-radius:15px;overflow:hidden}
+.thread{padding:14px;transition:background .15s}
+.thread:hover,.thread.active{background:#edf4ff}
+.chathead{background:#fbfcfe;padding:15px 16px}
+.messages{background:#f7f9fc}
+.bubble{border-radius:16px 16px 16px 5px;padding:11px 14px;line-height:1.45}
+.bubble.mine{border-radius:16px 16px 5px 16px;background:linear-gradient(135deg,#2563eb,#3979f5)}
+.sendrow{background:#fff}
+.footer{padding:18px 0;border-top:1px solid #e8edf4}
+.status{border:1px solid #cceedd}
+.status.error{border-color:#f4d0d0}
+@media(max-width:760px){
+ .top{padding:16px 15px 58px}
+ .nav{align-items:center}
+ .nav-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .nav-actions button{border-radius:10px}
+ .hero{margin:38px 0 0}
+ .hero h1{font-size:clamp(34px,9vw,44px);max-width:520px}
+ .hero p{font-size:14px}
+ .wrap{margin:-26px auto 35px;padding:0 12px}
+ .toolbar{border-radius:15px}
+ .new-listing-action{position:relative;top:auto}
+ .grid{gap:10px}
+ .listing{border-radius:15px}
+ .photo{height:140px}
+ .content{padding:12px}
+ .content h3{font-size:15px}
+ .dialog{padding:20px 16px;border-radius:22px 22px 0 0}
+ .create-dialog .formgrid{gap:12px}
+}
+@media(max-width:390px){
+ .nav-actions{grid-template-columns:1fr 1fr}
+ .hero h1{font-size:32px}
+ .photo{height:165px}
+}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
+
 </style></head><body>
 <header class="top"><div class="nav"><div><div class="logo">Találtam<span>.</span></div><small>Elveszett és megtalált értékek közössége</small></div><div class="nav-actions"><button class="ghost" id="messagesBtn">Üzenetek</button><button class="ghost" id="myBtn">Saját hirdetéseim</button><button class="primary" id="authBtn">Belépés / Regisztráció</button><button class="ghost hidden" id="logoutBtn">Kilépés</button></div></div><div class="hero"><h1>Segítsünk egymásnak<br>megtalálni, ami elveszett.</h1><p>Keress az elveszett tárgyak között, vagy jelentsd be, ha találtál valamit. Egy apró segítség is sokat számít.</p></div></header>
 <main class="wrap"><div class="toolbar"><input id="search" class="field" placeholder="Keresés tárgy, leírás vagy helyszín alapján…"><select id="kind" class="field"><option value="">Minden bejelentés</option><option>Elveszett</option><option>Talált</option></select><select id="category" class="field"><option value="">Minden kategória</option><option>Okmányok</option><option>Elektronika</option><option>Kulcs</option><option>Táska, pénztárca</option><option>Ruházat</option><option>Ékszer</option><option>Állat</option><option>Egyéb</option></select></div>
 <div class="layout"><section><div class="sectionhead"><h2 id="listTitle">Legfrissebb bejelentések</h2><span class="count" id="count">Betöltés…</span></div><div id="listings" class="grid"><div class="empty">Bejelentések betöltése…</div></div></section>
-<aside class="panel"><h2>Új bejelentés</h2><p class="sub">A közzétételhez jelentkezz be.</p><div id="status" class="status"></div><form id="createForm"><div class="formgrid"><div class="formgroup"><label>Bejelentés típusa *</label><select class="field" id="f-kind" name="kind" required><option>Elveszett</option><option>Talált</option></select></div><div class="formgroup"><label>Kategória *</label><select class="field" name="category" required><option>Okmányok</option><option>Elektronika</option><option>Kulcs</option><option>Táska, pénztárca</option><option>Ruházat</option><option>Ékszer</option><option>Állat</option><option>Egyéb</option></select></div><div class="formgroup full"><label>Megnevezés *</label><input class="field" name="title" maxlength="120" placeholder="Pl. Fekete pénztárca" required></div><div class="formgroup full"><label>Leírás *</label><textarea class="field" name="description" minlength="10" placeholder="Ismertetőjegyek, körülmények…" required></textarea></div><div class="formgroup"><label>Helyszín *</label><input class="field" name="location" placeholder="Pl. Budapest, Keleti pályaudvar" required></div><div class="formgroup"><label>Dátum *</label><input class="field" name="date" type="date" required></div><div class="formgroup full"><label>Kapcsolat *</label><input class="field" name="contact" placeholder="E-mail-cím vagy telefonszám" required></div><div class="formgroup full"><label>Fénykép (nem kötelező)</label><input class="field" name="image" type="file" accept="image/png,image/jpeg,image/webp"></div><div class="formgroup full"><label class="checkline"><input type="checkbox" name="show_owner_name" value="true" checked> A nevem jelenjen meg a hirdetésnél (ha nincs bejelölve: Névtelen)</label></div></div><button class="primary submit" id="submitBtn" type="submit">Bejelentés közzététele</button><div class="notice">A kapcsolati adat a hirdetés részleteinél látható. Személyes okmányok teljes adatait ne töltsd fel.</div></form></aside></div><div class="footer">Találtam · Közösségi elveszett-tárgy kereső</div></main>
+<div class="new-listing-action"><button class="primary new-listing-btn" id="newListingBtn"><span aria-hidden="true">＋</span> Új hirdetés</button></div>
+<div id="createModal" class="modal"><div class="dialog create-dialog"><button class="close" data-close>×</button><h2>Új bejelentés</h2><p class="sub">A közzétételhez jelentkezz be.</p><div id="status" class="status"></div><form id="createForm"><div class="formgrid"><div class="formgroup"><label>Bejelentés típusa *</label><select class="field" id="f-kind" name="kind" required><option>Elveszett</option><option>Talált</option></select></div><div class="formgroup"><label>Kategória *</label><select class="field" name="category" required><option>Okmányok</option><option>Elektronika</option><option>Kulcs</option><option>Táska, pénztárca</option><option>Ruházat</option><option>Ékszer</option><option>Állat</option><option>Egyéb</option></select></div><div class="formgroup full"><label>Megnevezés *</label><input class="field" name="title" maxlength="120" placeholder="Pl. Fekete pénztárca" required></div><div class="formgroup full"><label>Leírás *</label><textarea class="field" name="description" minlength="10" placeholder="Ismertetőjegyek, körülmények…" required></textarea></div><div class="formgroup"><label>Helyszín *</label><input class="field" name="location" placeholder="Pl. Budapest, Keleti pályaudvar" required></div><div class="formgroup"><label>Dátum *</label><input class="field" name="date" type="date" required></div><div class="formgroup full"><label>Kapcsolat *</label><input class="field" name="contact" placeholder="E-mail-cím vagy telefonszám" required></div><div class="formgroup full"><label>Fénykép (nem kötelező)</label><input class="field" name="image" type="file" accept="image/png,image/jpeg,image/webp"></div><div class="formgroup full"><label class="checkline"><input type="checkbox" name="show_owner_name" value="true" checked> A nevem jelenjen meg a hirdetésnél (ha nincs bejelölve: Névtelen)</label></div></div><button class="primary submit" id="submitBtn" type="submit">Bejelentés közzététele</button><div class="notice">A kapcsolati adat a hirdetés részleteinél látható. Személyes okmányok teljes adatait ne töltsd fel.</div></form></div></div></div><div class="footer">Találtam · Közösségi elveszett-tárgy kereső</div></main>
 <div id="modal" class="modal"><div class="dialog"><button class="close" data-close>×</button><div id="detail"></div></div></div>
 <div id="authModal" class="modal"><div class="dialog" style="max-width:440px"><button class="close" data-close>×</button><h2>Üdvözöl a Találtam!</h2><p class="sub">Jelentkezz be, vagy hozz létre egy ingyenes fiókot.</p><div class="auth-tabs"><button class="secondary" id="loginTab">Bejelentkezés</button><button class="ghost" id="registerTab">Regisztráció</button></div><div id="authStatus" class="status"></div><form id="authForm" class="auth-form"><div id="nameWrap" class="hidden"><label>Megjelenített név</label><input class="field" name="name" minlength="2" maxlength="60" placeholder="A neved"></div><div><label>E-mail-cím</label><input class="field" name="email" type="email" required></div><div><label>Jelszó (legalább 8 karakter)</label><input class="field" name="password" type="password" minlength="8" required></div><button class="primary" id="authSubmit">Bejelentkezés</button></form></div></div>
 <div id="chatModal" class="modal"><div class="dialog" style="max-width:850px"><button class="close" data-close>×</button><div class="topline"><div><h2 style="margin:0">Üzenetek</h2><div class="sub" style="margin:3px 0 0">Beszélgetések a hirdetéseidről és érdeklődőkről</div></div></div><div class="chat-layout"><div id="threads" class="threads"><div class="empty">Még nincs beszélgetés.</div></div><div class="chatbox"><div id="chatHead" class="chathead">Válassz egy beszélgetést</div><div id="chatMessages" class="messages"><div class="muted">A beszélgetés üzenetei itt jelennek meg.</div></div><form id="sendForm" class="sendrow"><input id="chatInput" class="field" placeholder="Írj üzenetet…" autocomplete="off" disabled><button class="primary" disabled id="sendBtn">Küldés</button></form></div></div></div></div>
@@ -75,13 +188,13 @@ function render(){ $('count').textContent=all.length+' hirdetés';if(!all.length
 function openModal(id){$(id).classList.add('open')}function closeModal(id){$(id).classList.remove('open')}
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.modal').classList.remove('open'));document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
 function showDetail(id){const x=all.find(v=>v.id===id);if(!x)return;const own=me&&x.owner_user_id===me.id;$('detail').innerHTML=`${x.image_url?`<img class="detailphoto" src="${esc(x.image_url)}">`:''}<div class="tags" style="margin-top:14px"><span class="tag ${x.kind==='Talált'?'found':''}">${esc(x.kind)}</span><span class="category">${esc(x.category)}</span></div><h2>${esc(x.title)}</h2><p>${esc(x.description)}</p><p><b>Helyszín:</b> ${esc(x.location)}<br><b>Dátum:</b> ${esc(x.date)}<br><b>Feladó:</b> ${esc(x.owner_name||'Ismeretlen')}</p><div class="contact"><b>Kapcsolati adat</b><br>${esc(x.contact)}</div><div class="owner-tools">${own?`<button class="secondary" id="editListing">Hirdetés módosítása</button><button class="danger" id="deleteListing">Hirdetés törlése</button>`: (me?`<button class="primary" id="writeOwner">Üzenet küldése a feladónak</button>`:`<button class="primary" id="loginToChat">Bejelentkezés az üzenetküldéshez</button>`)}</div>`;openModal('modal');if(own){$('editListing').onclick=()=>editListing(x);$('deleteListing').onclick=()=>deleteListing(x.id)}else if(me){$('writeOwner').onclick=()=>startChat(x)}else{$('loginToChat').onclick=()=>{closeModal('modal');openAuth()}}}
-function editListing(x){editingId=x.id;closeModal('modal');const f=$('createForm');for(const [k,v] of Object.entries({kind:x.kind,category:x.category,title:x.title,description:x.description,location:x.location,date:x.date,contact:x.contact}))f.elements[k].value=v;f.elements.show_owner_name.checked=!!x.show_owner_name;$('submitBtn').textContent='Módosítás mentése';$('listTitle').textContent='Hirdetés módosítása';window.scrollTo({top:document.querySelector('.panel').offsetTop-20,behavior:'smooth'});}
+function editListing(x){editingId=x.id;closeModal('modal');const f=$('createForm');for(const [k,v] of Object.entries({kind:x.kind,category:x.category,title:x.title,description:x.description,location:x.location,date:x.date,contact:x.contact}))f.elements[k].value=v;f.elements.show_owner_name.checked=!!x.show_owner_name;$('submitBtn').textContent='Módosítás mentése';$('createModal').querySelector('h2').textContent='Hirdetés módosítása';$('createModal').querySelector('.sub').textContent='Módosítsd a hirdetés adatait.';openModal('createModal');}
 async function deleteListing(id){if(!confirm('Biztosan törlöd ezt a hirdetést?'))return;try{await api('/listings/'+id,{method:'DELETE'});closeModal('modal');editingId=null;await load()}catch(e){alert(e.message)}}
 function openAuth(){authMode='login';setAuthMode();openModal('authModal')}function setAuthMode(){ $('nameWrap').classList.toggle('hidden',authMode==='login');$('loginTab').className=authMode==='login'?'secondary':'ghost';$('registerTab').className=authMode==='register'?'secondary':'ghost';$('authSubmit').textContent=authMode==='login'?'Bejelentkezés':'Regisztráció';$('authStatus').style.display='none';}
-$('authBtn').onclick=()=>me?alert('Bejelentkezve: '+me.name):openAuth();$('loginTab').onclick=()=>{authMode='login';setAuthMode()};$('registerTab').onclick=()=>{authMode='register';setAuthMode()};
+$('authBtn').onclick=()=>me?alert('Bejelentkezve: '+me.name):openAuth();$('newListingBtn').onclick=()=>{if(!me){openAuth();return}editingId=null;$('createForm').reset();$('createForm').elements.date.value=new Date().toISOString().slice(0,10);$('submitBtn').textContent='Bejelentés közzététele';$('createModal').querySelector('h2').textContent='Új bejelentés';$('createModal').querySelector('.sub').textContent='Add meg a hirdetés adatait.';$('status').style.display='none';openModal('createModal')};$('loginTab').onclick=()=>{authMode='login';setAuthMode()};$('registerTab').onclick=()=>{authMode='register';setAuthMode()};
 $('authForm').onsubmit=async e=>{e.preventDefault();const d=new FormData(e.target),payload={email:d.get('email'),password:d.get('password')};if(authMode==='register')payload.name=d.get('name');try{await api('/auth/'+(authMode==='login'?'login':'register'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});await refreshMe();closeModal('authModal');e.target.reset();await load()}catch(err){setStatus($('authStatus'),err.message,true)}};
 $('logoutBtn').onclick=async()=>{await api('/auth/logout',{method:'POST'});await refreshMe();await load()};
-$('createForm').onsubmit=async e=>{e.preventDefault();if(!me){openAuth();return}const btn=$('submitBtn');btn.disabled=true;const data=new FormData(e.target);data.set('show_owner_name',e.target.elements.show_owner_name.checked?'true':'false');try{await api(editingId?'/listings/'+editingId:'/listings',{method:editingId?'PUT':'POST',body:data});e.target.reset();e.target.elements.date.value=new Date().toISOString().slice(0,10);editingId=null;btn.textContent='Bejelentés közzététele';$('listTitle').textContent='Legfrissebb bejelentések';setStatus($('status'),'Sikeresen mentettük a hirdetést.');await load()}catch(err){setStatus($('status'),err.message,true)}finally{btn.disabled=false;if(!editingId)btn.textContent='Bejelentés közzététele'}};
+$('createForm').onsubmit=async e=>{e.preventDefault();if(!me){openAuth();return}const btn=$('submitBtn');btn.disabled=true;const data=new FormData(e.target);data.set('show_owner_name',e.target.elements.show_owner_name.checked?'true':'false');try{await api(editingId?'/listings/'+editingId:'/listings',{method:editingId?'PUT':'POST',body:data});e.target.reset();e.target.elements.date.value=new Date().toISOString().slice(0,10);editingId=null;btn.textContent='Bejelentés közzététele';$('listTitle').textContent='Legfrissebb bejelentések';setStatus($('status'),'Sikeresen mentettük a hirdetést.');await load();closeModal('createModal')}catch(err){setStatus($('status'),err.message,true)}finally{btn.disabled=false;if(!editingId)btn.textContent='Bejelentés közzététele'}};
 $('myBtn').onclick=async()=>{if(!me)return;const mine=await api('/listings');all=mine.filter(x=>x.owner_user_id===me.id);$('listTitle').textContent='Saját hirdetéseim';$('count').textContent=all.length+' hirdetés';render();window.scrollTo({top:document.querySelector('.sectionhead').offsetTop-20,behavior:'smooth'});};
 async function loadThreads(){threads=await api('/inbox');$('threads').innerHTML=threads.length?threads.map((t,i)=>`<div class="thread ${activeThread&&activeThread.listing_id===t.listing_id&&activeThread.other_user_id===t.other_user_id?'active':''}" data-i="${i}"><b>${esc(t.other_name)}</b><small>${esc(t.listing_title)}<br>${esc(t.last_message.slice(0,55))}</small></div>`).join(''):'<div class="empty">Még nincs beszélgetés.</div>';document.querySelectorAll('.thread').forEach(el=>el.onclick=()=>selectThread(threads[+el.dataset.i]));}
 async function selectThread(t){activeThread=t;await loadThreads();$('chatHead').textContent=t.other_name+' · '+t.listing_title;$('chatInput').disabled=false;$('sendBtn').disabled=false;await loadMessages()}

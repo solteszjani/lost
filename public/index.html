@@ -168,11 +168,98 @@ button:active{transform:scale(.98)}
 }
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
 
+
+/* TALALTAM NEO — complete visual system */
+:root{--ink:#111b33;--muted:#64748b;--blue:#315cf5;--line:#e7ebf3;--bg:#f5f7fc;--teal:#21c6a5;--surface:#fff;--shadow:0 22px 70px rgba(22,35,67,.09)}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);background:#f5f7fc;font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:-.018em}
+body:before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(ellipse at 5% 10%,rgba(49,92,245,.09),transparent 28%),radial-gradient(ellipse at 95% 35%,rgba(33,198,165,.08),transparent 25%)}
+.top{position:relative;isolation:isolate;overflow:hidden;padding:22px max(24px,calc((100% - 1240px)/2)) 106px;background:linear-gradient(115deg,#0b1530 0%,#122c60 48%,#2459e8 100%);color:white}
+.top:before{content:"";position:absolute;z-index:-1;width:680px;height:680px;right:-170px;top:-430px;border:1px solid rgba(255,255,255,.15);border-radius:50%;box-shadow:0 0 0 55px rgba(255,255,255,.025),0 0 0 115px rgba(255,255,255,.02)}
+.top:after{content:"";position:absolute;z-index:-1;width:440px;height:440px;right:18%;bottom:-380px;border-radius:50%;background:radial-gradient(circle,rgba(33,198,165,.22),transparent 68%)}
+.nav{max-width:1240px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:22px}
+.logo{display:flex;align-items:center;gap:11px;font-size:26px;font-weight:950;letter-spacing:-.065em}
+.logo:before{content:"T";display:grid;place-items:center;width:40px;height:40px;border-radius:14px;background:linear-gradient(145deg,#5ce5c6,#1ab99b);color:#0d3150;font-size:22px;box-shadow:0 8px 24px #0cddae35}
+.logo span{color:#72e8cf}.nav small{display:block;margin:4px 0 0 51px;color:#b9c9e6;font-size:11px;letter-spacing:.01em}
+.nav-actions{display:flex;align-items:center;gap:9px}
+.nav button{border:1px solid rgba(255,255,255,.17);border-radius:13px;padding:11px 16px;background:rgba(255,255,255,.085);color:#f6f8ff;font-size:12px;font-weight:750;backdrop-filter:blur(16px)}
+.nav button.primary{background:#fff;color:#15336e;border-color:white;box-shadow:0 8px 24px #071b4b35}
+.nav button:hover{transform:translateY(-2px);background:rgba(255,255,255,.17)}.nav button.primary:hover{background:#e9fff9}
+.hero{max-width:1240px;margin:78px auto 0}
+.hero:before{content:"AZ ELVESZETT ÉRTÉKEK KÖZÖSSÉGI KERESŐJE";display:inline-flex;margin-bottom:22px;padding:8px 12px;border:1px solid rgba(120,238,215,.28);border-radius:30px;background:rgba(33,198,165,.10);color:#9df3df;font-size:10px;font-weight:900;letter-spacing:.16em}
+.hero h1{max-width:790px;margin:0 0 20px;font-size:clamp(42px,6vw,72px);line-height:.99;letter-spacing:-.075em;font-weight:900}
+.hero p{max-width:620px;margin:0;color:#d2def4;font-size:16px;line-height:1.8}
+.wrap{position:relative;z-index:2;max-width:1240px;margin:-42px auto 70px;padding:0 22px}
+.toolbar{display:grid;grid-template-columns:minmax(220px,1.7fr) minmax(150px,.8fr) minmax(160px,.9fr);gap:10px;margin-bottom:34px;padding:13px;border:1px solid rgba(229,235,246,.9);border-radius:21px;background:rgba(255,255,255,.92);box-shadow:0 24px 65px rgba(15,32,68,.13);backdrop-filter:blur(20px)}
+.field{width:100%;min-height:48px;padding:13px 15px;border:1px solid #e4eaf3;border-radius:13px;background:#f9fbfe;color:#17233b;font:inherit;font-size:14px;outline:none;transition:.2s}
+.field:focus{border-color:#7898ff;background:#fff;box-shadow:0 0 0 4px rgba(49,92,245,.10)}
+button{border:0;border-radius:13px;padding:12px 17px;font:inherit;font-weight:800;cursor:pointer;transition:transform .18s,box-shadow .18s,background .18s}
+button:active{transform:scale(.98)}.primary{background:linear-gradient(135deg,#315cf5,#547bff);color:white;box-shadow:0 9px 22px rgba(49,92,245,.23)}
+.primary:hover{transform:translateY(-2px);box-shadow:0 14px 28px rgba(49,92,245,.30)}
+.secondary{background:#eaf0ff;color:#3154c5}.ghost{background:#f0f3f9;color:#34445e}.danger{background:#fff0f1;color:#bd3445}
+.layout{display:grid;grid-template-columns:minmax(0,1fr);gap:24px}
+.sectionhead{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 19px}
+.sectionhead h2{margin:0;font-size:27px;font-weight:900;letter-spacing:-.055em}
+.count{padding:7px 12px;border:1px solid #e4eaf4;border-radius:30px;background:white;color:#52627c;font-size:11px;font-weight:850}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:19px}
+.listing{overflow:hidden;border:1px solid #e8edf5;border-radius:21px;background:white;box-shadow:0 8px 26px rgba(26,43,77,.045);cursor:pointer;transition:transform .24s,box-shadow .24s,border-color .24s}
+.listing:hover{transform:translateY(-6px);border-color:#d6e1f3;box-shadow:0 22px 48px rgba(26,43,77,.12)}
+.photo{height:205px;background:linear-gradient(135deg,#eaf0ff,#e9faf5);color:#8298bd;font-size:48px}.photo img{width:100%;height:100%;object-fit:cover;transition:transform .5s}
+.listing:hover .photo img{transform:scale(1.045)}.content{padding:19px}
+.tags{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.tag{padding:6px 10px;border-radius:8px;background:#edf2ff;color:#3159d6;font-size:10px;font-weight:900;letter-spacing:.04em;text-transform:uppercase}
+.tag.found{background:#e4faf3;color:#078568}.category,.muted{color:#7b879b;font-size:11px;font-weight:650}
+.content h3{margin:0 0 9px;color:#17233b;font-size:19px;line-height:1.25;font-weight:850;letter-spacing:-.04em}
+.desc{min-height:42px;margin:0 0 15px;color:#758197;font-size:13px;line-height:1.65}
+.meta{display:flex;justify-content:space-between;gap:10px;padding-top:13px;border-top:1px solid #eff2f7;color:#8994a7;font-size:11px}
+.empty{grid-column:1/-1;padding:60px 20px;border:1px dashed #cbd6e7;border-radius:20px;background:rgba(255,255,255,.8);color:#8290a7;text-align:center}
+.new-listing-action{display:flex;justify-content:flex-end;margin:0 0 22px}.new-listing-btn{display:inline-flex;align-items:center;gap:10px;padding:15px 22px;border-radius:15px;font-size:14px}
+.modal{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;padding:22px;background:rgba(8,17,39,.68);backdrop-filter:blur(12px)}
+.modal.open{display:flex}.dialog{position:relative;width:100%;max-width:700px;max-height:92vh;overflow:auto;padding:30px;border:1px solid rgba(255,255,255,.65);border-radius:25px;background:#fff;box-shadow:0 35px 100px rgba(0,0,0,.28)}
+.close{float:right;display:grid;place-items:center;width:38px;height:38px;padding:0;border-radius:12px;background:#f0f3f8;color:#5a6880;font-size:22px}
+.dialog h2{margin:14px 0 8px;font-size:26px;font-weight:900;letter-spacing:-.05em}.dialog p{color:#64748b;line-height:1.65}
+.create-dialog{max-width:760px}.create-dialog .panel{padding:0;border:0;box-shadow:none}.formgrid{gap:15px}
+label{margin-bottom:7px;color:#526078;font-size:11px;font-weight:850;letter-spacing:.035em;text-transform:uppercase}
+.formgroup textarea{min-height:120px}.submit{min-height:50px;margin-top:18px}.notice{color:#8b96a8;line-height:1.55}
+.status{border:1px solid #c8f0df;border-radius:13px;background:#edfbf5;color:#087b58}.status.error{border-color:#f7d0d5;background:#fff2f3;color:#b42336}
+.contact{padding:16px;border:1px solid #e8edf5;border-radius:14px;background:#f7f9fd;line-height:1.6}.owner-tools{gap:10px}.detailphoto{max-height:360px;border-radius:18px}
+.auth-tabs{display:flex;gap:6px;margin:15px 0 20px;padding:5px;border-radius:14px;background:#f1f4f9}.auth-tabs button{flex:1;border-radius:10px}.auth-form{gap:14px}
+.checkline{display:flex;align-items:center;gap:10px;text-transform:none;letter-spacing:0;font-size:12px}
+.chat-layout{grid-template-columns:245px minmax(0,1fr);gap:15px;min-height:480px}
+.threads,.chatbox{overflow:hidden;border:1px solid #e7edf5;border-radius:18px;background:white}
+.thread{padding:15px;border-bottom:1px solid #eff2f7;transition:background .15s}.thread:hover,.thread.active{background:#edf3ff}
+.thread b{font-size:13px;font-weight:850}.thread small{display:block;margin-top:4px;color:#8490a4;line-height:1.5}
+.chathead{padding:17px 18px;border-bottom:1px solid #edf1f6;background:#fbfcfe;font-size:13px}
+.messages{gap:11px;padding:18px;background:#f7f9fc}.bubble{max-width:78%;padding:12px 15px;border-radius:17px 17px 17px 5px;background:#e9eef7;color:#2b3a55;font-size:13px;line-height:1.5}
+.bubble.mine{border-radius:17px 17px 5px 17px;background:linear-gradient(135deg,#315cf5,#527bff);color:white}
+.sendrow{gap:10px;padding:13px;border-top:1px solid #edf1f6;background:white}.sendrow input{border-radius:14px}
+.footer{margin-top:42px;padding:22px 0;border-top:1px solid #e7edf4;color:#9aa4b5;font-size:11px;text-align:center}.hidden{display:none!important}
+@media(max-width:980px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.top{padding-bottom:90px}}
+@media(max-width:760px){
+ .top{padding:15px 15px 68px}.nav{align-items:center;flex-wrap:wrap}.logo{font-size:23px}.logo:before{width:36px;height:36px}
+ .nav small{margin-left:47px;font-size:10px}.nav-actions{display:grid;width:100%;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+ .nav-actions button{min-height:42px;padding:9px 7px;font-size:11px}.hero{margin:45px 0 0}
+ .hero:before{font-size:8px;letter-spacing:.1em}.hero h1{font-size:clamp(38px,10vw,53px);line-height:1.01}
+ .hero p{font-size:13px;line-height:1.7}.wrap{margin:-27px auto 40px;padding:0 12px}
+ .toolbar{grid-template-columns:1fr 1fr;gap:8px;padding:10px;border-radius:17px}.toolbar input{grid-column:1/-1}
+ .field{min-height:46px;font-size:13px;padding:11px}.sectionhead h2{font-size:22px}
+ .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.listing{border-radius:16px}.photo{height:145px}
+ .content{padding:12px}.content h3{font-size:15px}.desc{font-size:11px;min-height:0;line-height:1.5}
+ .meta{font-size:9px;flex-wrap:wrap}.tag{font-size:8px;padding:5px 7px}.category{font-size:9px}
+ .new-listing-action{position:sticky;top:8px;z-index:5}.new-listing-btn{width:100%;justify-content:center;min-height:49px}
+ .modal{align-items:flex-end;padding:0}.dialog{max-width:none;max-height:94dvh;padding:23px 17px 26px;border-radius:24px 24px 0 0}
+ .create-dialog .formgrid{grid-template-columns:1fr;gap:12px}.create-dialog .formgrid .full{grid-column:auto}
+ .chat-layout{grid-template-columns:1fr;min-height:65dvh}.threads{display:flex;max-height:90px;overflow-x:auto;overflow-y:hidden}
+ .thread{min-width:155px;border-right:1px solid #edf1f6;border-bottom:0}.chatbox{min-height:52dvh}.messages{max-height:none}.bubble{max-width:88%}.sendrow{position:sticky;bottom:0}
+}
+@media(max-width:390px){.grid{grid-template-columns:1fr}.photo{height:180px}.toolbar{grid-template-columns:1fr}.toolbar input{grid-column:auto}.hero h1{font-size:37px}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
+
 </style></head><body>
 <header class="top"><div class="nav"><div><div class="logo">Találtam<span>.</span></div><small>Elveszett és megtalált értékek közössége</small></div><div class="nav-actions"><button class="ghost" id="messagesBtn">Üzenetek</button><button class="ghost" id="myBtn">Saját hirdetéseim</button><button class="primary" id="authBtn">Belépés / Regisztráció</button><button class="ghost hidden" id="logoutBtn">Kilépés</button></div></div><div class="hero"><h1>Segítsünk egymásnak<br>megtalálni, ami elveszett.</h1><p>Keress az elveszett tárgyak között, vagy jelentsd be, ha találtál valamit. Egy apró segítség is sokat számít.</p></div></header>
 <main class="wrap"><div class="toolbar"><input id="search" class="field" placeholder="Keresés tárgy, leírás vagy helyszín alapján…"><select id="kind" class="field"><option value="">Minden bejelentés</option><option>Elveszett</option><option>Talált</option></select><select id="category" class="field"><option value="">Minden kategória</option><option>Okmányok</option><option>Elektronika</option><option>Kulcs</option><option>Táska, pénztárca</option><option>Ruházat</option><option>Ékszer</option><option>Állat</option><option>Egyéb</option></select></div>
 <div class="layout"><section><div class="sectionhead"><h2 id="listTitle">Legfrissebb bejelentések</h2><span class="count" id="count">Betöltés…</span></div><div id="listings" class="grid"><div class="empty">Bejelentések betöltése…</div></div></section>
-<div class="new-listing-action"><button class="primary new-listing-btn" id="newListingBtn"><span aria-hidden="true">＋</span> Új hirdetés</button></div>
+<div class="new-listing-action hidden" id="newListingAction"><button class="primary new-listing-btn" id="newListingBtn"><span aria-hidden="true">＋</span> Új hirdetés</button></div>
 <div id="createModal" class="modal"><div class="dialog create-dialog"><button class="close" data-close>×</button><h2>Új bejelentés</h2><p class="sub">A közzétételhez jelentkezz be.</p><div id="status" class="status"></div><form id="createForm"><div class="formgrid"><div class="formgroup"><label>Bejelentés típusa *</label><select class="field" id="f-kind" name="kind" required><option>Elveszett</option><option>Talált</option></select></div><div class="formgroup"><label>Kategória *</label><select class="field" name="category" required><option>Okmányok</option><option>Elektronika</option><option>Kulcs</option><option>Táska, pénztárca</option><option>Ruházat</option><option>Ékszer</option><option>Állat</option><option>Egyéb</option></select></div><div class="formgroup full"><label>Megnevezés *</label><input class="field" name="title" maxlength="120" placeholder="Pl. Fekete pénztárca" required></div><div class="formgroup full"><label>Leírás *</label><textarea class="field" name="description" minlength="10" placeholder="Ismertetőjegyek, körülmények…" required></textarea></div><div class="formgroup"><label>Helyszín *</label><input class="field" name="location" placeholder="Pl. Budapest, Keleti pályaudvar" required></div><div class="formgroup"><label>Dátum *</label><input class="field" name="date" type="date" required></div><div class="formgroup full"><label>Kapcsolat *</label><input class="field" name="contact" placeholder="E-mail-cím vagy telefonszám" required></div><div class="formgroup full"><label>Fénykép (nem kötelező)</label><input class="field" name="image" type="file" accept="image/png,image/jpeg,image/webp"></div><div class="formgroup full"><label class="checkline"><input type="checkbox" name="show_owner_name" value="true" checked> A nevem jelenjen meg a hirdetésnél (ha nincs bejelölve: Névtelen)</label></div></div><button class="primary submit" id="submitBtn" type="submit">Bejelentés közzététele</button><div class="notice">A kapcsolati adat a hirdetés részleteinél látható. Személyes okmányok teljes adatait ne töltsd fel.</div></form></div></div></div><div class="footer">Találtam · Közösségi elveszett-tárgy kereső</div></main>
 <div id="modal" class="modal"><div class="dialog"><button class="close" data-close>×</button><div id="detail"></div></div></div>
 <div id="authModal" class="modal"><div class="dialog" style="max-width:440px"><button class="close" data-close>×</button><h2>Üdvözöl a Találtam!</h2><p class="sub">Jelentkezz be, vagy hozz létre egy ingyenes fiókot.</p><div class="auth-tabs"><button class="secondary" id="loginTab">Bejelentkezés</button><button class="ghost" id="registerTab">Regisztráció</button></div><div id="authStatus" class="status"></div><form id="authForm" class="auth-form"><div id="nameWrap" class="hidden"><label>Megjelenített név</label><input class="field" name="name" minlength="2" maxlength="60" placeholder="A neved"></div><div><label>E-mail-cím</label><input class="field" name="email" type="email" required></div><div><label>Jelszó (legalább 8 karakter)</label><input class="field" name="password" type="password" minlength="8" required></div><button class="primary" id="authSubmit">Bejelentkezés</button></form></div></div>
@@ -182,7 +269,7 @@ const $=id=>document.getElementById(id);let all=[],me=null,authMode='login',edit
 function esc(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 async function api(url,opts={}){const r=await fetch(url,{credentials:'same-origin',...opts});let b={};try{b=await r.json()}catch{}if(!r.ok)throw Error(b.detail||'Hiba történt.');return b}
 function setStatus(el,msg,error=false){el.textContent=msg;el.className='status'+(error?' error':'');el.style.display='block'}
-async function refreshMe(){try{const x=await api('/auth/me');me=x.user}catch{me=null} $('authBtn').classList.toggle('hidden',!!me);$('logoutBtn').classList.toggle('hidden',!me);$('myBtn').classList.toggle('hidden',!me);$('messagesBtn').classList.toggle('hidden',!me);if(me)$('authBtn').textContent=me.name;else $('authBtn').textContent='Belépés / Regisztráció';}
+async function refreshMe(){try{const x=await api('/auth/me');me=x.user}catch{me=null} $('authBtn').classList.toggle('hidden',!!me);$('logoutBtn').classList.toggle('hidden',!me);$('myBtn').classList.toggle('hidden',!me);$('messagesBtn').classList.toggle('hidden',!me);$('newListingAction').classList.toggle('hidden',!me);if(me)$('authBtn').textContent=me.name;else $('authBtn').textContent='Belépés / Regisztráció';}
 async function load(){const p=new URLSearchParams();if($('kind').value)p.set('kind',$('kind').value);if($('category').value)p.set('category',$('category').value);if($('search').value.trim())p.set('q',$('search').value.trim());try{all=await api('/listings?'+p);render()}catch(e){$('listings').innerHTML='<div class="empty">Nem sikerült kapcsolódni a szerverhez. Frissítsd az oldalt.</div>';}}
 function render(){ $('count').textContent=all.length+' hirdetés';if(!all.length){$('listings').innerHTML='<div class="empty">Nincs megjeleníthető hirdetés.</div>';return;} $('listings').innerHTML=all.map(x=>`<article class="listing" data-id="${x.id}"><div class="photo">${x.image_url?`<img src="${esc(x.image_url)}" alt="${esc(x.title)}">`:'⌕'}</div><div class="content"><div class="tags"><span class="tag ${x.kind==='Talált'?'found':''}">${esc(x.kind)}</span><span class="category">${esc(x.category)}</span></div><h3>${esc(x.title)}</h3><p class="desc">${esc(x.description.slice(0,95))}${x.description.length>95?'…':''}</p><div class="meta"><span>⌖ ${esc(x.location)}</span><span>${esc(x.date)}</span></div><div class="muted" style="margin-top:9px">Feladó: ${esc(x.owner_name||'Ismeretlen')}</div></div></article>`).join('');document.querySelectorAll('.listing').forEach(el=>el.addEventListener('click',()=>showDetail(+el.dataset.id)));}
 function openModal(id){$(id).classList.add('open')}function closeModal(id){$(id).classList.remove('open')}

@@ -448,19 +448,27 @@ def send_message(listing_id:int,payload:MessageIn,session:Session=Depends(db),us
     notify(session,recipient_id,"Új üzenet",f"Új üzeneted érkezett: {listing.title}","/"); session.commit()
     return {"id":row.id,"sender_id":row.sender_id,"receiver_id":row.receiver_id,"body":row.body,"image_url":row.image_url,"read":False,"created_at":row.created_at.isoformat(),"mine":True}
 
-@app.get("/inbox")
-def inbox(session:Session=Depends(db),user:UserRow=Depends(require_user)):
+def _conversation_list(session:Session,user:UserRow,archived:bool=False):
     rows=session.scalars(select(MessageRow).where(or_(MessageRow.sender_id==user.id,MessageRow.receiver_id==user.id)).order_by(MessageRow.created_at.desc())).all()
     seen=set(); out=[]
     for m in rows:
         other_id=m.receiver_id if m.sender_id==user.id else m.sender_id
         key=(m.listing_id,other_id)
-        if session.scalar(select(ArchiveRow).where(ArchiveRow.user_id==user.id,ArchiveRow.listing_id==m.listing_id,ArchiveRow.other_user_id==other_id)): continue
+        is_archived=session.scalar(select(ArchiveRow).where(ArchiveRow.user_id==user.id,ArchiveRow.listing_id==m.listing_id,ArchiveRow.other_user_id==other_id)) is not None
+        if is_archived != archived: continue
         if session.scalar(select(BlockRow).where(or_(and_(BlockRow.blocker_id==user.id,BlockRow.blocked_id==other_id),and_(BlockRow.blocker_id==other_id,BlockRow.blocked_id==user.id)))): continue
         if key in seen: continue
         seen.add(key); listing=session.get(ListingRow,m.listing_id); other=session.get(UserRow,other_id)
-        out.append({"listing_id":m.listing_id,"listing_title":listing.title if listing else "Törölt hirdetés","other_user_id":other_id,"other_name":other.name if other else "Felhasználó","last_message":m.body,"created_at":m.created_at.isoformat()})
+        out.append({"listing_id":m.listing_id,"listing_title":listing.title if listing else "Törölt hirdetés","other_user_id":other_id,"other_name":other.name if other else "Felhasználó","last_message":m.body or ("Képes üzenet" if m.image_url else "Üzenet"),"created_at":m.created_at.isoformat(),"archived":is_archived})
     return out
+
+@app.get("/inbox")
+def inbox(session:Session=Depends(db),user:UserRow=Depends(require_user)):
+    return _conversation_list(session,user,False)
+
+@app.get("/conversations/archived")
+def archived_conversations(session:Session=Depends(db),user:UserRow=Depends(require_user)):
+    return _conversation_list(session,user,True)
 
 class ReportIn(BaseModel):
     reason: str = Field(min_length=3, max_length=1000)
@@ -713,8 +721,17 @@ def rate_user(payload:RatingIn,session:Session=Depends(db),user:UserRow=Depends(
 
 @app.post("/conversations/{listing_id}/{other_id}/archive")
 def archive_conversation(listing_id:int,other_id:int,session:Session=Depends(db),user:UserRow=Depends(require_user)):
+    if not session.scalar(select(MessageRow).where(MessageRow.listing_id==listing_id,or_(and_(MessageRow.sender_id==user.id,MessageRow.receiver_id==other_id),and_(MessageRow.sender_id==other_id,MessageRow.receiver_id==user.id)))):
+        raise HTTPException(404,"A beszélgetés nem található.")
     if not session.scalar(select(ArchiveRow).where(ArchiveRow.user_id==user.id,ArchiveRow.listing_id==listing_id,ArchiveRow.other_user_id==other_id)):
         session.add(ArchiveRow(user_id=user.id,listing_id=listing_id,other_user_id=other_id)); session.commit()
+    return {"ok":True}
+
+@app.delete("/conversations/{listing_id}/{other_id}/archive")
+def restore_conversation(listing_id:int,other_id:int,session:Session=Depends(db),user:UserRow=Depends(require_user)):
+    row=session.scalar(select(ArchiveRow).where(ArchiveRow.user_id==user.id,ArchiveRow.listing_id==listing_id,ArchiveRow.other_user_id==other_id))
+    if row:
+        session.delete(row); session.commit()
     return {"ok":True}
 
 @app.post("/users/{other_id}/block")

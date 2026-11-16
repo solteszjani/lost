@@ -92,3 +92,9 @@ A jelenlegi egyezéskereső szabályalapú (leírás, cím, kategória, kerület
 A telefonszám menthető, de SMS-kódos ellenőrzéshez külső SMS-szolgáltató és API-kulcs szükséges; addig a profil nem kap ellenőrzött jelzést. A böngészőértesítés nem garantált, ha a böngésző/oldal teljesen be van zárva; valódi háttér pushhoz Web Push kulcsok és szolgáltatói konfiguráció szükséges.
 
 A feltöltött képek jelenleg a szerver fájlrendszerébe kerülnek. Vercel szerveren ez nem tartós tárhely, ezért éles használat előtt Vercel Blob vagy más tartós objektumtár bekötése szükséges. Ne tölts fel éles adatot addig, amíg a tartós képtárhely és a push/SMS szolgáltatások nincsenek konfigurálva.
+
+### V2.2 újdonságok
+- Budapest területére korlátozott térkép és térképes lekérdezés.
+- Profilom: profilkép feltöltése, e-mail- és jelszómódosítás, fióktörlés.
+- Fénykép alapú keresés: perceptuális képhash-alapú hasonlósági előszűrés, megnyitható hirdetési találatokkal.
+- A képi találatok becslések; nem garantálják, hogy ugyanaz a tárgy szerepel a képeken.

@@ -35,3 +35,17 @@ A hirdetésfeladás külön „Új hirdetés” gomb mögötti ablakban nyílik 
 
 ## Budapest kerület szerinti hirdetések
 A frissített verzió automatikusan hozzáadja a `district` oszlopot a meglévő `listings` táblához. A régi hirdetések megmaradnak, de a kerületük üres marad; ezeket a tulajdonosnak később szerkesztéssel kell kiegészítenie. Az új hirdetéshez már kötelező a 23 budapesti kerület egyikének kiválasztása.
+
+## V2.1 – Térképes egyezések megnyitása
+- A térképi jelölő megnyitásakor a rendszer automatikusan lekéri a lehetséges, ellentétes típusú egyezéseket.
+- A jelölő felugró ablakában az egyező hirdetések külön listában, egyezési százalékkal és – ha kiszámítható – távolsággal jelennek meg.
+- Az egyező hirdetés saját adatlapja közvetlenül a térképről megnyitható.
+- A nyilvános egyezéslekérdezés csak a nyilvános hirdetési adatokat adja vissza; elérhetőséget nem tesz közzé.
+
+## Budapest V2.2 – térkép, profil és képalapú keresés
+
+- A térkép Budapest közelítő földrajzi határain belülre van korlátozva; a szerveroldali térképes lekérdezés is kizárja az ezen kívüli koordinátákat.
+- A bejelentkezett felhasználó a **Profilom** menüben profilképet tölthet fel, módosíthatja e-mail-címét és jelszavát, illetve véglegesen törölheti a fiókját.
+- A fényképes kereső a feltöltött képet a hirdetések képeivel perceptuális képhash alapján hasonlítja össze. Ez hasonló vizuális mintákat kereső előszűrés, nem mesterséges intelligenciás tárgyfelismerés; a találati százalék nem bizonyítja a tárgy azonosságát.
+- A képfeldolgozáshoz a szerver `Pillow` csomagot használja, amely már szerepel a `server/requirements.txt` fájlban.
+- Fontos: a profilképek és hirdetésképek jelenlegi feltöltése a szerver `uploads` könyvtárába ment. Vercel szerveren ez nem tartós tárhely; éles használathoz Vercel Blob vagy más objektumtár bekötése szükséges.

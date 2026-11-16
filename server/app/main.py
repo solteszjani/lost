@@ -63,6 +63,7 @@ class UserRow(Base):
     successful_returns: Mapped[int] = mapped_column(Integer, default=0)
     rating_sum: Mapped[int] = mapped_column(Integer, default=0)
     rating_count: Mapped[int] = mapped_column(Integer, default=0)
+    avatar_url: Mapped[str | None] = mapped_column(String(300), nullable=True)
 
 class SessionRow(Base):
     __tablename__ = "user_sessions"
@@ -144,7 +145,7 @@ with engine.begin() as conn:
     if "resolved_at" not in cols: conn.exec_driver_sql("ALTER TABLE listings ADD COLUMN resolved_at TIMESTAMP")
 with engine.begin() as conn:
     ucols={c["name"] for c in inspect(engine).get_columns("users")}
-    for name,ddl in [("phone","VARCHAR(30)"),("phone_verified","BOOLEAN NOT NULL DEFAULT FALSE" if engine.dialect.name=="postgresql" else "BOOLEAN NOT NULL DEFAULT 0"),("successful_returns","INTEGER NOT NULL DEFAULT 0"),("rating_sum","INTEGER NOT NULL DEFAULT 0"),("rating_count","INTEGER NOT NULL DEFAULT 0")]:
+    for name,ddl in [("phone","VARCHAR(30)"),("phone_verified","BOOLEAN NOT NULL DEFAULT FALSE" if engine.dialect.name=="postgresql" else "BOOLEAN NOT NULL DEFAULT 0"),("successful_returns","INTEGER NOT NULL DEFAULT 0"),("rating_sum","INTEGER NOT NULL DEFAULT 0"),("rating_count","INTEGER NOT NULL DEFAULT 0"),("avatar_url","VARCHAR(300)")]:
         if name not in ucols: conn.exec_driver_sql(f"ALTER TABLE users ADD COLUMN {name} {ddl}")
     mcols={c["name"] for c in inspect(engine).get_columns("messages")}
     if "image_url" not in mcols: conn.exec_driver_sql("ALTER TABLE messages ADD COLUMN image_url VARCHAR(300)")
@@ -235,7 +236,7 @@ def logout(request: Request, response: Response, session: Session = Depends(db))
 
 @app.get("/auth/me")
 def me(user: UserRow | None = Depends(current_user)):
-    return {"user": ({"id":user.id,"name":user.name,"email":user.email} if user else None)}
+    return {"user": ({"id":user.id,"name":user.name,"email":user.email,"avatar_url":user.avatar_url} if user else None)}
 
 @app.get("/health")
 def health(): return {"status": "ok", "app": "Találtam"}
@@ -251,6 +252,14 @@ def list_listings(kind: str | None = None, category: str | None = None, district
         term = q.casefold()
         rows = [r for r in rows if term in r.title.casefold() or term in r.description.casefold() or term in r.location.casefold()]
     return [{**serialize(r), "owner_name": (session.get(UserRow, r.owner_user_id).name if r.show_owner_name and r.owner_user_id and session.get(UserRow, r.owner_user_id) else ("Névtelen" if not r.show_owner_name else "Ismeretlen"))} for r in rows]
+
+@app.get("/listings/{listing_id}")
+def get_listing(listing_id: int, session: Session = Depends(db)):
+    row = session.get(ListingRow, listing_id)
+    if not row or row.status != "active":
+        raise HTTPException(404, "A hirdetés nem található vagy már lezárták.")
+    owner = session.get(UserRow, row.owner_user_id) if row.owner_user_id else None
+    return {**serialize(row), "owner_name": (owner.name if row.show_owner_name and owner else ("Névtelen" if not row.show_owner_name else "Ismeretlen"))}
 
 @app.post("/listings", status_code=201)
 async def create_listing(
@@ -403,9 +412,12 @@ def notify_matches(row,session):
 
 @app.get("/map/listings")
 def map_listings(district:str|None=None,kind:str|None=None,lat:float|None=None,lon:float|None=None,radius:float=50,session:Session=Depends(db)):
+    # A térképes nézet kizárólag Budapest közigazgatási területének közelítő határain belül jelenít meg adatokat.
+    south, north, west, east = 47.34, 47.62, 18.92, 19.35
     rows=session.scalars(select(ListingRow).where(ListingRow.status=="active",ListingRow.latitude.is_not(None),ListingRow.longitude.is_not(None))).all()
     out=[]
     for r in rows:
+        if not (south <= r.latitude <= north and west <= r.longitude <= east): continue
         if district and r.district!=district: continue
         if kind and r.kind!=kind: continue
         d=haversine(lat,lon,r.latitude,r.longitude) if lat is not None and lon is not None else None
@@ -414,7 +426,7 @@ def map_listings(district:str|None=None,kind:str|None=None,lat:float|None=None,l
     return out
 
 @app.get("/matches/{listing_id}")
-def get_matches(listing_id:int,session:Session=Depends(db),user:UserRow=Depends(require_user)):
+def get_matches(listing_id:int,session:Session=Depends(db)):
     row=session.get(ListingRow,listing_id)
     if not row: raise HTTPException(404,"A bejelentés nem található.")
     opposite="Talált" if row.kind=="Elveszett" else "Elveszett"
@@ -426,7 +438,7 @@ def get_matches(listing_id:int,session:Session=Depends(db),user:UserRow=Depends(
         if dist is not None: score+=max(0,0.25-dist/100)
         if score>=0.12: scored.append((score,c,dist))
     scored.sort(key=lambda x:x[0],reverse=True)
-    return [{**serialize(c),"match_score":round(score*100),"distance_km":round(dist,1) if dist is not None else None} for score,c,dist in scored[:10]]
+    return [{**serialize(c),"owner_name":(session.get(UserRow,c.owner_user_id).name if c.show_owner_name and c.owner_user_id and session.get(UserRow,c.owner_user_id) else ("Névtelen" if not c.show_owner_name else "Ismeretlen")),"match_score":min(99,round(score*100)),"distance_km":round(dist,1) if dist is not None else None} for score,c,dist in scored[:10]]
 
 @app.get("/notifications")
 def get_notifications(session:Session=Depends(db),user:UserRow=Depends(require_user)):
@@ -457,7 +469,7 @@ def stats(session:Session=Depends(db)):
 def profile(user_id:int,session:Session=Depends(db)):
     u=session.get(UserRow,user_id)
     if not u: raise HTTPException(404,"A profil nem található.")
-    return {"id":u.id,"name":u.name,"phone_verified":bool(u.phone_verified),"successful_returns":u.successful_returns or 0,"rating":round((u.rating_sum or 0)/(u.rating_count or 1),1) if u.rating_count else None,"rating_count":u.rating_count or 0,"member_since":u.created_at.date().isoformat()}
+    return {"id":u.id,"name":u.name,"avatar_url":u.avatar_url,"phone_verified":bool(u.phone_verified),"successful_returns":u.successful_returns or 0,"rating":round((u.rating_sum or 0)/(u.rating_count or 1),1) if u.rating_count else None,"rating_count":u.rating_count or 0,"member_since":u.created_at.date().isoformat()}
 
 class PhoneIn(BaseModel): phone:str=Field(min_length=8,max_length=30)
 @app.post("/profile/phone")
@@ -465,6 +477,78 @@ def save_phone(payload:PhoneIn,session:Session=Depends(db),user:UserRow=Depends(
     # Phone is stored as unverified. Real SMS verification requires an SMS provider and credentials.
     user.phone=payload.phone.strip(); user.phone_verified=False; session.commit()
     return {"phone":user.phone,"verified":False,"message":"A telefonszám mentve. SMS-ellenőrzés csak SMS-szolgáltató csatlakoztatása után aktiválható."}
+
+class ProfileEmailIn(BaseModel): email: str = Field(min_length=5, max_length=190)
+class ProfilePasswordIn(BaseModel): current_password: str = Field(min_length=1, max_length=128); new_password: str = Field(min_length=8, max_length=128)
+
+@app.put("/profile/email")
+def change_email(payload: ProfileEmailIn, session: Session=Depends(db), user: UserRow=Depends(require_user)):
+    email=payload.email.strip().lower()
+    if session.scalar(select(UserRow).where(UserRow.email==email,UserRow.id!=user.id)):
+        raise HTTPException(409,"Ezzel az e-mail-címmel már létezik fiók.")
+    user.email=email; session.commit(); return {"ok":True,"email":email}
+
+@app.put("/profile/password")
+def change_password(payload: ProfilePasswordIn, session: Session=Depends(db), user: UserRow=Depends(require_user)):
+    if not verify_password(payload.current_password,user.password_hash): raise HTTPException(400,"A jelenlegi jelszó nem megfelelő.")
+    user.password_hash=hash_password(payload.new_password)
+    # A jelszócsere után a többi aktív munkamenet megszűnik.
+    token=None
+    # Keep the current browser session; revoke all other sessions by matching request cookie below is not available here.
+    session.commit(); return {"ok":True,"message":"A jelszó sikeresen módosult."}
+
+@app.post("/profile/avatar")
+async def upload_avatar(image: UploadFile=File(...), session: Session=Depends(db), user: UserRow=Depends(require_user)):
+    raw=await image.read()
+    if len(raw)>5*1024*1024: raise HTTPException(413,"A profilkép maximum 5 MB lehet.")
+    if not (raw.startswith(b"\x89PNG\r\n\x1a\n") or raw.startswith(b"\xff\xd8\xff") or (raw[:4]==b"RIFF" and raw[8:12]==b"WEBP")): raise HTTPException(415,"Csak PNG, JPG vagy WEBP kép tölthető fel.")
+    ext="png" if raw.startswith(b"\x89PNG") else ("jpg" if raw.startswith(b"\xff\xd8") else "webp")
+    name=f"avatar_{user.id}_{uuid4().hex}.{ext}"; (UPLOAD_DIR/name).write_bytes(raw); user.avatar_url=f"/uploads/{name}"; session.commit()
+    return {"avatar_url":user.avatar_url}
+
+@app.delete("/profile/account")
+def delete_account(session: Session=Depends(db), user: UserRow=Depends(require_user)):
+    # A felhasználó személyes adatait és kapcsolódó tartalmait eltávolítjuk; a közösségi hirdetéseket töröltként jelöljük.
+    for listing in session.scalars(select(ListingRow).where(ListingRow.owner_user_id==user.id)).all():
+        listing.status="deleted"; listing.contact=""
+    for model in (SessionRow, NotificationRow, BlockRow, ArchiveRow, RatingRow, MessageRow):
+        if model is BlockRow: session.query(model).filter(or_(model.blocker_id==user.id,model.blocked_id==user.id)).delete(synchronize_session=False)
+        elif model is ArchiveRow: session.query(model).filter(model.user_id==user.id).delete(synchronize_session=False)
+        elif model is RatingRow: session.query(model).filter(or_(model.from_user_id==user.id,model.to_user_id==user.id)).delete(synchronize_session=False)
+        elif model is MessageRow: session.query(model).filter(or_(model.sender_id==user.id,model.receiver_id==user.id)).delete(synchronize_session=False)
+        else: session.query(model).filter(model.user_id==user.id).delete(synchronize_session=False)
+    session.delete(user); session.commit(); return {"ok":True}
+
+@app.post("/search/by-image")
+async def search_by_image(image: UploadFile=File(...), session: Session=Depends(db)):
+    raw=await image.read()
+    if len(raw)>8*1024*1024: raise HTTPException(413,"A keresőkép maximum 8 MB lehet.")
+    try:
+        from PIL import Image, ImageOps
+        import io
+        def ahash(data):
+            im=Image.open(io.BytesIO(data)).convert("RGB")
+            im=ImageOps.fit(im,(8,8)).convert("L")
+            px=list(im.getdata()); avg=sum(px)/len(px)
+            return [v>=avg for v in px]
+        query_hash=ahash(raw)
+    except Exception:
+        raise HTTPException(415,"A feltöltött fájl nem feldolgozható kép. PNG, JPG vagy WEBP használható.")
+    rows=session.scalars(select(ListingRow).where(ListingRow.status=="active",ListingRow.image_url.is_not(None))).all()
+    results=[]
+    for row in rows:
+        path=UPLOAD_DIR / Path(row.image_url).name
+        if not path.exists(): continue
+        try:
+            candidate_hash=ahash(path.read_bytes())
+            distance=sum(a!=b for a,b in zip(query_hash,candidate_hash))
+            similarity_pct=round((1-distance/64)*100)
+            if similarity_pct>=58:
+                owner=session.get(UserRow,row.owner_user_id) if row.owner_user_id else None
+                results.append({**serialize(row),"owner_name":(owner.name if row.show_owner_name and owner else ("Névtelen" if not row.show_owner_name else "Ismeretlen")),"image_similarity":similarity_pct})
+        except Exception: continue
+    results.sort(key=lambda x:x["image_similarity"],reverse=True)
+    return {"results":results[:20],"method":"perceptual_hash","note":"A képi hasonlóság előszűrés. A hasonló szín- és fényviszonyok befolyásolhatják az eredményt."}
 
 class RatingIn(BaseModel): listing_id:int; score:int=Field(ge=1,le=5); note:str=Field(default="",max_length=500)
 @app.post("/ratings",status_code=201)

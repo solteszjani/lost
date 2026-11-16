@@ -1,0 +1,12 @@
+{
+  "name": "Találtam",
+  "short_name": "Találtam",
+  "description": "Elveszett és megtalált tárgyak közösségi keresője",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f7fb",
+  "theme_color": "#172b59",
+  "lang": "hu",
+  "icons": [{"src":"/static/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}

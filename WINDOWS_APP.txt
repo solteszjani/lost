@@ -1,0 +1,1 @@
+A Windows asztali alkalmazás elkészítéséhez nyisd meg a desktop mappát, majd futtasd a build_windows.bat fájlt.

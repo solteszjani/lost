@@ -1,0 +1,12 @@
+TALÁLTAM – WINDOWS ASZTALI ALKALMAZÁS
+
+1. Telepítsd a Python 3.10–3.12 valamelyik verzióját Windowsra.
+2. Kattints duplán a build_windows.bat fájlra.
+3. A folyamat végén az alkalmazás itt lesz: dist\Talaltam.exe
+4. Indítsd el a Talaltam.exe fájlt.
+
+Az alkalmazás saját ablakban fut, böngészőt nem kell megnyitni.
+Az adatbázis és a feltöltött képek a %LOCALAPPDATA%\Talaltam mappába kerülnek,
+így a program újrafordításakor/frissítésekor megmaradnak.
+
+A Windows .exe fordítását Windows rendszeren kell elvégezni.

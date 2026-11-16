@@ -453,7 +453,10 @@ def notify_matches(row,session):
         same_district=bool(row.district and row.district==candidate.district)
         if score>=0.12 or same_cat or same_district:
             for uid in {row.owner_user_id,candidate.owner_user_id}:
-                if uid and uid not in (None,): notify(session,uid,"Lehetséges találat",f"Hasonló bejelentés: {row.title if uid==candidate.owner_user_id else candidate.title}"+(f" · {dist:.1f} km" if dist is not None else ""),"/")
+                if not uid: continue
+                matched_id = candidate.id if uid == row.owner_user_id else row.id
+                matched_title = candidate.title if uid == row.owner_user_id else row.title
+                notify(session,uid,"Lehetséges találat",f"Hasonló bejelentés: {matched_title}"+(f" · {dist:.1f} km" if dist is not None else ""),f"/?listing={matched_id}")
     session.commit()
 
 @app.get("/map/listings")

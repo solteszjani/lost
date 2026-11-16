@@ -242,11 +242,12 @@ def me(user: UserRow | None = Depends(current_user)):
 def health(): return {"status": "ok", "app": "Találtam"}
 
 @app.get("/listings")
-def list_listings(kind: str | None = None, category: str | None = None, district: str | None = None, q: str | None = None, city: str | None = None, session: Session = Depends(db)):
+def list_listings(kind: str | None = None, category: str | None = None, district: str | None = None, q: str | None = None, location: str | None = None, city: str | None = None, session: Session = Depends(db)):
     stmt = select(ListingRow).where(ListingRow.status == "active").order_by(ListingRow.created_at.desc())
     if kind: stmt = stmt.where(ListingRow.kind == kind)
     if category: stmt = stmt.where(ListingRow.category == category)
     if district: stmt = stmt.where(ListingRow.district == district)
+    if location: stmt = stmt.where(ListingRow.location.ilike(f"%{location.strip()}%"))
     rows = session.scalars(stmt).all()
     if q:
         term = q.casefold()
